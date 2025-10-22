@@ -1,121 +1,205 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 function ReservationForm({ setReservation }) {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [phone, setPhone] = useState("");
-    const [startTime, setStartTime] = useState("");
+    const [startTime, setStartTime] = useState("");     // "YYYY-MM-DDTHH:mm"
+    const [minutes, setMinutes] = useState(120);        // default 2h
     const [tableNumber, setTableNumber] = useState("");
     const [availableTables, setAvailableTables] = useState([]);
 
     const navigate = useNavigate();
+    const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
 
-    // 🔹 helper: lokalny czas (bez UTC przesunięć)
-    const formatLocalDateTime = (date) => {
+    // Helper: convert Date → "YYYY-MM-DDTHH:mm:ss"
+    const toIsoWithSeconds = (date) => {
         const pad = (n) => (n < 10 ? "0" + n : n);
         return (
             date.getFullYear() +
-            "-" +
-            pad(date.getMonth() + 1) +
-            "-" +
-            pad(date.getDate()) +
-            "T" +
-            pad(date.getHours()) +
-            ":" +
-            pad(date.getMinutes()) +
-            ":" +
-            pad(date.getSeconds())
+            "-" + pad(date.getMonth() + 1) +
+            "-" + pad(date.getDate()) +
+            "T" + pad(date.getHours()) +
+            ":" + pad(date.getMinutes()) +
+            ":" + pad(date.getSeconds())
         );
     };
 
-    // 🔹 pobieranie dostępnych stolików (zawsze 2h)
-    useEffect(() => {
-        const fetchAvailableTables = async () => {
-            if (!startTime) return;
+    // Parse datetime-local input → Date (adds :00 seconds)
+    const parseLocalDateTime = (value) => (value ? new Date(value + ":00") : null);
 
-            const start = new Date(startTime);
+    // 1️Fetch available tables for (start, minutes)
+    useEffect(() => {
+        const fetchAvailable = async () => {
+            if (!startTime || !minutes) {
+                setAvailableTables([]);
+                return;
+            }
+
+            const start = parseLocalDateTime(startTime);
+            if (!start) return;
+
+            const startISO = toIsoWithSeconds(start);
 
             try {
                 const res = await fetch(
-                    `http://localhost:8080/api/reservations/available?start=${formatLocalDateTime(start)}`,
+                    `${API}/api/reservations/available?start=${encodeURIComponent(startISO)}&minutes=${minutes}`,
                     { credentials: "include" }
                 );
-                if (!res.ok) throw new Error("Fehler beim Laden der verfügbaren Tische");
+                if (!res.ok) throw new Error("Error loading available tables");
 
                 const data = await res.json();
-                setAvailableTables(data);
-            } catch (err) {
-                console.error("Fehler beim Abrufen:", err);
+                setAvailableTables(Array.isArray(data) ? data : []);
+            } catch (e) {
+                console.error(e);
                 setAvailableTables([]);
             }
         };
 
-        fetchAvailableTables();
-    }, [startTime]);
+        fetchAvailable();
+    }, [startTime, minutes, API]);
+
+    // 2️⃣ Clear selected table if it's no longer available
+    useEffect(() => {
+        if (!tableNumber) return;
+        const stillAvailable = availableTables.some(
+            (t) => String(t.tableNumber) === String(tableNumber)
+        );
+        if (!stillAvailable) setTableNumber("");
+    }, [tableNumber, availableTables]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const start = new Date(startTime);
+        const start = parseLocalDateTime(startTime);
+        if (!start) {
+            alert("Please select a start time.");
+            return;
+        }
         if (start < new Date()) {
-            alert("❌ Du kannst keine Reservierung in der Vergangenheit anlegen!");
+            alert(" You cannot book a reservation in the past!");
+            return;
+        }
+        if (!minutes || minutes < 30 || minutes > 300) {
+            alert("Duration must be between 30 and 300 minutes.");
+            return;
+        }
+        if (!tableNumber) {
+            alert("Please select a table.");
             return;
         }
 
-        const newReservation = {
-            tableNumber,
-            reservation: { name, email, phone, startTime }
-            // ⬆️ backend liczy endTime = start + 2h
+        const end = new Date(start.getTime() + minutes * 60 * 1000);
+        const payload = {
+            tableNumber: Number(tableNumber),
+            reservation: {
+                name,
+                email,
+                phone,
+                startTime: toIsoWithSeconds(start),
+                endTime: toIsoWithSeconds(end),
+            },
         };
 
         try {
-            const response = await fetch("http://localhost:8080/api/reservations", {
+            const resp = await fetch(`${API}/api/reservations`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify(newReservation),
+                body: JSON.stringify(payload),
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error("Fehler beim Senden der Reservierung: " + errorText);
+            if (!resp.ok) {
+                const txt = await resp.text();
+                throw new Error(txt || "Unknown error");
             }
 
-            const data = await response.json();
+            const data = await resp.json();
             setReservation([data]);
             navigate("/reservations/my");
         } catch (err) {
-            console.error("Fehler beim Hinzufügen:", err);
-            alert("❌ Reservierung fehlgeschlagen: " + err.message);
+            console.error(err);
+            alert(" Reservation failed: " + err.message);
         }
     };
 
+    // Minimum date/time for input (current moment, rounded to minutes)
+    const nowLocalForMin = useMemo(() => {
+        const d = new Date();
+        d.setSeconds(0, 0);
+        const pad = (n) => (n < 10 ? "0" + n : n);
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }, []);
+
     return (
         <form onSubmit={handleSubmit} className="reservation-form">
-            <input type="text" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} required />
-            <input type="email" placeholder="E-Mail" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            <input type="tel" placeholder="Telefonnummer" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+            <input
+                type="text"
+                placeholder="Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+            />
 
-            {/* 🔹 Startzeit = wybór daty i godziny */}
+            <input
+                type="email"
+                placeholder="E-Mail"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+            />
+
+            <input
+                type="tel"
+                placeholder="Phone number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+            />
+
+            {/* Start time */}
             <input
                 type="datetime-local"
                 value={startTime}
+                min={nowLocalForMin}
                 onChange={(e) => setStartTime(e.target.value)}
                 required
             />
 
-            {/* 🔹 tylko dostępne stoliki */}
-            <select value={tableNumber} onChange={(e) => setTableNumber(e.target.value)} required>
-                <option value="">Wähle einen Tisch...</option>
+            {/* Duration (30–300 minutes, step 30) */}
+            <select
+                value={minutes}
+                onChange={(e) => setMinutes(Number(e.target.value))}
+                required
+            >
+                {[...Array(10)].map((_, i) => {
+                    const m = (i + 1) * 30; // 30, 60, …, 300
+                    const label =
+                        m < 60 ? `${m} minutes` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+                    return (
+                        <option key={m} value={m}>
+                            {label}
+                        </option>
+                    );
+                })}
+            </select>
+
+            {/* Available tables only */}
+            <select
+                value={tableNumber}
+                onChange={(e) => setTableNumber(e.target.value)}
+                required
+            >
+                <option value="">Select a table...</option>
                 {availableTables.map((t) => (
                     <option key={t.id} value={t.tableNumber}>
-                        Tisch {t.tableNumber} ({t.numberOfSeats} Personen)
+                        Table {t.tableNumber} ({t.numberOfSeats} seats)
                     </option>
                 ))}
             </select>
 
-            <button type="submit">Reservieren</button>
+            <button type="submit">Reserve</button>
         </form>
     );
 }

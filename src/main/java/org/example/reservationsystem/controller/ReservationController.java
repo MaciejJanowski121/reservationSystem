@@ -6,10 +6,11 @@ import org.example.reservationsystem.DTO.ReservationRequestDTO;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.Reservation;
 import org.example.reservationsystem.model.RestaurantTable;
-import org.example.reservationsystem.service.ReservationService;
+import org.example.reservationsystem.repository.ReservationRepository;
 import org.example.reservationsystem.repository.TableRepository;
-import org.slf4j.LoggerFactory;
+import org.example.reservationsystem.service.ReservationService;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -24,59 +25,86 @@ import java.util.List;
 @RequestMapping("/api/reservations")
 public class ReservationController {
 
-    private static final Logger logger = LoggerFactory.getLogger(ReservationController.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReservationController.class);
 
-    private final ReservationService reservationService;
-    private final JwtService jwtService;
-    private final TableRepository tableRepository;
+    // Dauergrenzen in Minuten (30–300)
+    private static final int MIN_MINUTES = 30;
+    private static final int MAX_MINUTES = 300;
+
+    private final ReservationService     reservationService;
+    private final JwtService             jwtService;
+    private final TableRepository        tableRepository;
+    private final ReservationRepository  reservationRepository;
 
     @Autowired
     public ReservationController(ReservationService reservationService,
                                  JwtService jwtService,
-                                 TableRepository tableRepository) {
-        this.reservationService = reservationService;
-        this.jwtService = jwtService;
-        this.tableRepository = tableRepository;
+                                 TableRepository tableRepository,
+                                 ReservationRepository reservationRepository) {
+        this.reservationService    = reservationService;
+        this.jwtService            = jwtService;
+        this.tableRepository       = tableRepository;
+        this.reservationRepository = reservationRepository;
     }
 
-    // Neue Reservierung erstellen
+    /**
+     * Erstellt eine neue Reservierung.
+     * Erwartet: JWT im Cookie "token", sowie ReservationRequestDTO (Tischnummer + Reservierung).
+     *
+     * @param request HTTP-Request (für JWT-Cookie)
+     * @param dto      Daten der Reservierungsanfrage
+     * @return 200 OK mit gespeicherter Reservierung, 401 wenn nicht eingeloggt,
+     *         409 bei Zeitüberschneidung, 500 bei unerwarteten Fehlern.
+     */
     @PostMapping
     public ResponseEntity<Reservation> createReservation(HttpServletRequest request,
-                                                         @RequestBody ReservationRequestDTO reservationRequestDTO) {
-        logger.info("Reservierungsanfrage erhalten");
+                                                         @RequestBody ReservationRequestDTO dto) {
+        LOGGER.info("Reservierungsanfrage erhalten");
 
-        String username = extractUsernameFromToken(request);
+        final String username = extractUsernameFromToken(request);
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        int tableNumber = reservationRequestDTO.getTableNumber();
-        Reservation reservation = reservationRequestDTO.getReservation();
+        final int tableNumber = dto.getTableNumber();
+        final Reservation reservation = dto.getReservation();
 
         try {
-            Reservation newReservation = reservationService.addReservation(reservation, tableNumber, username);
-            logger.info("Reservierung erfolgreich gespeichert");
-            return ResponseEntity.ok(newReservation);
+            Reservation saved = reservationService.addReservation(reservation, tableNumber, username);
+            LOGGER.info("Reservierung erfolgreich gespeichert");
+            return ResponseEntity.ok(saved);
         } catch (IllegalStateException e) {
-            logger.warn("Reservierung fehlgeschlagen: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(null);
+            // z. B. Zeitüberschneidung
+            LOGGER.warn("Reservierung fehlgeschlagen: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (Exception e) {
-            logger.error("Fehler bei der Erstellung der Reservierung: {}", e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+            LOGGER.error("Fehler bei der Erstellung der Reservierung: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // Reservierung löschen
+    /**
+     * Löscht eine Reservierung.
+     *
+     * @param id ID der Reservierung
+     * @return 204 No Content
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReservation(@PathVariable Long id) {
         reservationService.deleteReservation(id);
         return ResponseEntity.noContent().build();
     }
 
-    // Aktuelle Reservierung des eingeloggten Benutzers abrufen
+    /**
+     * Liefert die Reservierung des eingeloggten Benutzers.
+     *
+     * @param request HTTP-Request (für JWT-Cookie)
+     * @return 200 OK mit Reservierung, 204 No Content wenn keine vorhanden,
+     *         401 wenn nicht eingeloggt, 500 bei Fehler.
+     */
     @GetMapping("/userReservations")
     public ResponseEntity<Reservation> getUserReservation(HttpServletRequest request) {
-        String username = extractUsernameFromToken(request);
+        final String username = extractUsernameFromToken(request);
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -85,61 +113,68 @@ public class ReservationController {
             Reservation reservation = reservationService.getUserReservation(username);
             if (reservation != null) {
                 return ResponseEntity.ok(reservation);
-            } else {
-                return ResponseEntity.noContent().build();
             }
+            return ResponseEntity.noContent().build();
         } catch (Exception e) {
+            LOGGER.error("Fehler beim Abrufen der Benutzerreservierung: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // Alle Reservierungen abrufen (Admin)
+    /**
+     * Liefert alle Reservierungen (z. B. für Admin-Zwecke).
+     *
+     * @return 200 OK mit Liste
+     */
     @GetMapping("/all")
     public ResponseEntity<List<Reservation>> getAllReservations() {
         try {
-            List<Reservation> allReservations = reservationService.getAllReservations();
-            return ResponseEntity.ok(allReservations);
+            List<Reservation> all = reservationService.getAllReservations();
+            return ResponseEntity.ok(all);
         } catch (Exception e) {
-            logger.error("Fehler beim Abrufen aller Reservierungen: {}", e.getMessage());
+            LOGGER.error("Fehler beim Abrufen aller Reservierungen: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // Verfügbare Tische für ein Zeitfenster abrufen
+    /**
+     * Liefert alle verfügbaren Tische für ein Zeitfenster.
+     * Es werden ausschließlich freie Tische zurückgegeben (keine Zeitüberschneidung).
+     *
+     * Request-Parameter:
+     * - start: ISO-Datum/Zeit (z. B. 2025-10-22T18:00:00)
+     * - minutes: gewünschte Dauer in Minuten (wird auf 30–300 geklemmt)
+     *
+     * @return 200 OK mit Liste verfügbarer Tische, 500 bei Fehler.
+     */
     @GetMapping("/available")
     public ResponseEntity<List<RestaurantTable>> getAvailableTables(
-            @RequestParam("start") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start) {
-
+            @RequestParam("start")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam("minutes") Integer minutes) {
         try {
-            LocalDateTime end = start.plusHours(2); // rezerwacje zawsze 2h
+            final int clamped = clampMinutes(minutes);
+            final LocalDateTime end = start.plusMinutes(clamped);
 
-            List<RestaurantTable> allTables = tableRepository.findAll();
-
-            List<RestaurantTable> available = allTables.stream()
-                    .filter(table -> {
-                        List<Reservation> existingReservations = table.getReservations();
-                        if (existingReservations == null || existingReservations.isEmpty()) {
-                            return true;
-                        }
-
-                        // wolny jeśli BRAK overlap
-                        return existingReservations.stream().noneMatch(existing -> {
-                            LocalDateTime existingStart = existing.getStartTime();
-                            LocalDateTime existingEnd = existing.getEndTime();
-                            return start.isBefore(existingEnd) && end.isAfter(existingStart);
-                        });
-                    })
+            // frei, wenn KEINE Überschneidung (newStart < existingEnd && newEnd > existingStart -> false)
+            List<RestaurantTable> available = tableRepository.findAll().stream()
+                    .filter(table -> !reservationRepository
+                            .existsByTable_IdAndStartTimeLessThanAndEndTimeGreaterThan(
+                                    table.getId(), end, start))
                     .toList();
 
             return ResponseEntity.ok(available);
-
         } catch (Exception e) {
-            logger.error("Fehler beim Ermitteln verfügbarer Tische: {}", e.getMessage());
+            LOGGER.error("Fehler beim Ermitteln verfügbarer Tische: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // Hilfsmethode JWT → Username
+    // ------------------------------------------------------------
+    // Hilfsfunktionen
+    // ------------------------------------------------------------
+
+    /** Liest den Benutzernamen aus dem JWT-Cookie "token". */
     private String extractUsernameFromToken(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) return null;
@@ -148,11 +183,19 @@ public class ReservationController {
             if ("token".equals(cookie.getName())) {
                 try {
                     return jwtService.getUsername(cookie.getValue());
-                } catch (Exception e) {
-                    return null;
+                } catch (Exception ignored) {
+                    // ungültiges/abgelaufenes Token
                 }
             }
         }
         return null;
+    }
+
+    /** Begrenzt die angefragte Dauer auf 30–300 Minuten. */
+    private static int clampMinutes(Integer minutes) {
+        if (minutes == null) return MIN_MINUTES; // defensiver Default
+        if (minutes < MIN_MINUTES) return MIN_MINUTES;
+        if (minutes > MAX_MINUTES) return MAX_MINUTES;
+        return minutes;
     }
 }

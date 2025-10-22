@@ -6,10 +6,11 @@ import org.example.reservationsystem.DTO.ReservationRequestDTO;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.controller.ReservationController;
 import org.example.reservationsystem.model.Reservation;
+import org.example.reservationsystem.repository.ReservationRepository;
+import org.example.reservationsystem.repository.TableRepository;
 import org.example.reservationsystem.service.ReservationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentMatchers;
 
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -21,13 +22,24 @@ public class ReservationControllerTest {
 
     private ReservationService reservationService;
     private JwtService jwtService;
+    private TableRepository tableRepository;              // <-- nowy mock
+    private ReservationRepository reservationRepository;  // <-- nowy mock
+
     private ReservationController reservationController;
 
     @BeforeEach
     void setUp() {
         reservationService = mock(ReservationService.class);
         jwtService = mock(JwtService.class);
-        reservationController = new ReservationController(reservationService, jwtService);
+        tableRepository = mock(TableRepository.class);                    // <-- dodane
+        reservationRepository = mock(ReservationRepository.class);        // <-- dodane
+
+        reservationController = new ReservationController(
+                reservationService,
+                jwtService,
+                tableRepository,
+                reservationRepository
+        );
     }
 
     @Test
@@ -53,7 +65,8 @@ public class ReservationControllerTest {
         dto.setReservation(reservation);
 
         when(jwtService.getUsername("validToken")).thenReturn("testuser");
-        when(reservationService.addReservation(any(), anyInt(), eq("testuser"))).thenReturn(reservation);
+        when(reservationService.addReservation(any(Reservation.class), anyInt(), eq("testuser")))
+                .thenReturn(reservation);
 
         ResponseEntity<Reservation> response = reservationController.createReservation(request, dto);
 
@@ -68,5 +81,6 @@ public class ReservationControllerTest {
         ResponseEntity<Void> response = reservationController.deleteReservation(1L);
 
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
+        verify(reservationService).deleteReservation(1L);
     }
 }

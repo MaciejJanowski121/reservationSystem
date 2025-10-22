@@ -4,7 +4,30 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cf3b961a-aef8-488d-92e9-8e49d1d3c85a" name="Changes" comment="cleanup: remove leftover reservationSystem folder" />
+    <list default="true" id="cf3b961a-aef8-488d-92e9-8e49d1d3c85a" name="Changes" comment="cleanup: remove leftover reservationSystem folder">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/.eslintcache" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/.eslintcache" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/1.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/1.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/10.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/10.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/2.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/2.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/3.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/3.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/4.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/4.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/5.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/5.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/6.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/6.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/7.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/7.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/9.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/9.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack.old" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/node_modules/.cache/default-development/index.pack.old" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/ReservationForm.jsx" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/ReservationForm.jsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/controller/ReservationController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/controller/ReservationController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/repository/ReservationRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/repository/ReservationRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/service/ReservationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/org/example/reservationsystem/service/ReservationService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/org/example/reservationsystem/ReservationControllerTest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/org/example/reservationsystem/ReservationControllerTest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/controller/ReservationController.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/controller/ReservationController.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/model/Reservation.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/model/Reservation.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/repository/ReservationRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/repository/ReservationRepository.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/service/ReservationService.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/org/example/reservationsystem/service/ReservationService.class" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -19,12 +42,12 @@
     &quot;assignee&quot;: &quot;MaciejJanowski121&quot;
   }
 }</component>
-  <component name="GithubPullRequestsUISettings">{
-  &quot;selectedUrlAndAccountId&quot;: {
-    &quot;url&quot;: &quot;https://github.com/MaciejJanowski121/ReservationSystem.git&quot;,
-    &quot;accountId&quot;: &quot;44bd4623-d8f0-4611-b0b3-81c9ab0ff134&quot;
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/MaciejJanowski121/reservationSystem.git",
+    "accountId": "44bd4623-d8f0-4611-b0b3-81c9ab0ff134"
   }
-}</component>
+}]]></component>
   <component name="KubernetesApiPersistence">{}</component>
   <component name="KubernetesApiProvider">{
   &quot;isMigrated&quot;: true
@@ -48,7 +71,7 @@
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "Spring Boot.ReservationSystemApplication.executor": "Run",
-    "git-widget-placeholder": "master",
+    "git-widget-placeholder": "main",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "/Users/maciejjanowski/Desktop/reservationSystem",
     "node.js.detected.package.eslint": "true",
@@ -107,7 +130,7 @@
       <workItem from="1759308853632" duration="5291000" />
       <workItem from="1760178231743" duration="359000" />
       <workItem from="1761070895885" duration="739000" />
-      <workItem from="1761145254247" duration="3869000" />
+      <workItem from="1761145254247" duration="6294000" />
     </task>
     <task id="LOCAL-00001" summary="cleanup: remove leftover reservationSystem folder">
       <option name="closed" value="true" />
