@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Make a Reservation</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+
+
+<nav id="nav">
+    <ul>
+        <li><a href="/allReservations.html"><i class="fas fa-info-circle"></i>All Reservations</a></li>
+        <li><a href="/home.html"><i class="fas fa-envelope"></i>Home</a></li>
+        <li><a href="/reservation.html"><i class="fas fa-calendar-check"></i> Reservation</a></li>
+        <li><a href="/menu.html"><i class="fas fa-hamburger"></i> Menu</a></li>
+    </ul>
+</nav>
+
+
+<div class="container">
+    <h1>Make Your Reservation</h1>
+    <form id="reservation">
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+        <br>
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required>
+        <br>
+        <label for="phone">Phone:</label>
+        <input type="text" id="phone" name="phone" required>
+        <br>
+        <label for="date">Date:</label>
+        <input type="datetime-local" id="date" name="date" required>
+        <br>
+        <label for="table">Table:</label>
+        <select id="table" name="table" required>
+            <option value="">Choose a table...</option>
+            <option value="1">Table 1 (2 Personen)</option>
+            <option value="2">Table 2 (3 Personen)</option>
+            <option value="3">Table 3 (6 Personen)</option>
+            <option value="4">Table 4 (8 Personen)</option>
+            <option value="5">Table 5 (2 Personen)</option>
+            <option value="6">Table 6 (4 Personen)</option>
+        </select>
+        <br>
+        <button id="reservation-button"   type="submit" class="submit-btn">Reserve Now</button>
+    </form>
+</div>
+</body>
+<script>
+
+    document.getElementById('reservation').addEventListener('submit',async function (event) {
+
+        event.preventDefault()
+        const name = document.getElementById('name').value;
+        const email = document.getElementById('email').value;
+        const phone = document.getElementById('phone').value;
+        const reservationTime = document.getElementById('date').value;
+        const tableNumber = parseInt(document.getElementById('table').value, 10);
+
+
+
+
+        const data = {
+reservation: {
+    name: name,
+    email: email,
+    phone: phone,
+    reservationTime: reservationTime,
+},
+            tableNumber: tableNumber,
+}
+
+
+
+
+
+        try {
+            const response = await fetch('/createReservation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) {
+                throw new Error('Something went wrong!');
+            }
+            const result = await response.json();
+            alert('Reservation successful!');
+
+            const selectedOption = document.querySelector(`#table option[value="${tableNumber}"]`);
+            if (selectedOption) {
+                selectedOption.disabled = true;
+                selectedOption.textContent += " (Reserved)";
+            }
+
+            document.getElementById('reservation').reset();
+
+        } catch (error) {
+            console.error('Fehler bei der reservierung: ', error);
+            alert('Something went wrong!');
+        }
+    });
+
+
+
+
+
+
+
+</script>
+</html>

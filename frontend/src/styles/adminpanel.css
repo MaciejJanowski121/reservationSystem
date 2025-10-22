@@ -1,0 +1,127 @@
+/* ===== Admin Panel – spójny z NewReservation & Auth ===== */
+
+/* Layout */
+
+.admin-container {
+    min-height: 70vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    /* background: #f8f9fa;  USUNIĘTE */
+}
+
+.admin-box {
+    background: rgba(255,250,245,0.88);
+    border: 1px solid rgba(181,133,0,0.25);
+    border-radius: 20px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.12);
+    backdrop-filter: blur(8px) saturate(1.05);
+    padding: 30px 40px;
+    max-width: 720px;
+    width: 30%;
+    color: #374151;
+    text-align: center;
+}
+
+/* Nagłówki */
+.admin-container h1 {
+    margin: 0 0 16px;
+    color: #1e293b;
+    font-size: 1.6rem;
+    font-weight: 9000;
+    letter-spacing: -0.02em;
+}
+.admin-container p {
+    margin: 6px 0;
+    color: #374151;
+}
+
+/* Lista rezerwacji */
+.reservation-list {
+    list-style: none;
+    padding: 0;
+    margin: 16px 0 0;
+    display: grid;
+    gap: 12px;
+}
+
+.reservation-list li {
+    background: rgba(255,255,255,0.85);
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 14px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+    padding: 12px 14px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #374151;
+}
+
+.reservation-list li strong {
+    color: #1e293b;
+}
+
+/* Akcje */
+.admin-actions {
+    display: grid;
+    gap: 12px;
+    margin: 30px 0;
+}
+
+/* Przyciski */
+.account-btn {
+    height: 56px;
+    width: 65%;
+    border-radius: 12px;
+    border: 1px solid rgba(181,133,0,0.25);
+    cursor: pointer;
+    font-weight: 800;
+    letter-spacing: .02em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    transition: filter .2s, transform .08s, background-color .2s, border-color .2s;
+}
+
+.account-btn:hover { transform: translateY(-1px); }
+.account-btn:active { transform: translateY(0); }
+
+/* Primary (złoty), Danger (czerwony) */
+.account-btn--primary {
+    background: linear-gradient(180deg, #b58500, #8a6500);
+    color: #fff;
+}
+.account-btn--primary:hover { filter: brightness(1.03); }
+
+.account-btn--danger {
+    background: linear-gradient(180deg, #ef4444, #b91c1c);
+    border-color: rgba(239,68,68,.25);
+    color: #fff;
+}
+.account-btn--danger:hover { filter: brightness(1.03); }
+
+/* Delete-Button w liście */
+.reservation-list button {
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(239,68,68,.25);
+    background: linear-gradient(180deg, #ef4444, #b91c1c);
+    color:#fff;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter .2s, transform .08s;
+}
+.reservation-list button:hover { filter: brightness(1.05); }
+.reservation-list button:active { transform: translateY(1px); }
+
+/* Mobile */
+@media (max-width: 768px) {
+    .admin-container { padding: 16px; }
+    .admin-container h1 { font-size: 1.4rem; }
+    .reservation-list li { flex-direction: column; gap: 10px; align-items: flex-start; }
+}

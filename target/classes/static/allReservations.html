@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Home</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+
+</head>
+
+<h1 class="welcome-text">Welcome to the Homepage of a Restaurant Page</h1>
+
+
+<nav id="nav">
+  <ul>
+    <li><a href="/allReservations.html"><i class="fas fa-info-circle"></i>All Reservations</a></li>
+    <li><a href="/home.html"><i class="fas fa-envelope"></i>Home</a></li>
+    <li><a href="/reservation.html"><i class="fas fa-calendar-check"></i> Reservation</a></li>
+    <li><a href="/menu.html"><i class="fas fa-hamburger"></i> Menu</a></li>
+  </ul>
+</nav>
+
+<div id="reservations">
+
+
+
+
+</div>
+
+
+
+
+<body>
+
+</body>
+<script>
+async function getReservations() {
+  const reservationContainer = document.getElementById('reservations');
+  try {
+    const response = await fetch('/getReservations');
+    if (!response.ok) {
+      throw new Error('Something went wrong!');
+    }
+    const result = await response.json();
+
+
+    result.forEach(reservation => {
+      const reservationDiv = document.createElement('div');
+      reservationDiv.classList.add('reservation-item');
+
+      const name = document.createElement('p');
+      const table = document.createElement('p');
+      const date = document.createElement('p');
+
+      name.textContent = `Name: ${reservation.name}`;
+      table.textContent = `Table: ${reservation.table.tableNumber}`;
+      date.textContent = `Date: ${reservation.reservationTime}`;
+
+      const deleteButton = document.createElement('button');
+      deleteButton.setAttribute('data-id',reservation.id);
+      deleteButton.onclick = () => deleteReservation(reservation.id,reservationDiv);
+      deleteButton.textContent = 'Delete';
+      deleteButton.classList.add('delete-button');
+      reservationDiv.appendChild(name);
+      reservationDiv.appendChild(table);
+      reservationDiv.appendChild(date);
+      reservationDiv.appendChild(deleteButton);
+      reservationContainer.appendChild(reservationDiv);
+      reservationContainer.style.visibility = "visible";
+      console.log(result);
+    });
+
+  } catch (error) {
+    console.error('Fehler bei der aktualisierung: ', error);
+  }
+}
+
+async function deleteReservation(id,reservationDiv) {
+  const reservation = document.getElementById("reservations");
+  try {
+    const response = await fetch(`/deleteReservation/${id}`, {
+      method: 'DELETE',
+    });
+    if (response.ok) {
+reservationDiv.remove();
+      reservation.style.visibility="hidden"
+      console.log(`Reservation ${id} deleted successfully.`);
+    } else {
+      throw new Error('Something went wrong!');
+    }
+  } catch (error) {
+    console.error('Error occurred while deleting reservation: ', error.message);
+  }
+}
+
+window.onload = getReservations;
+</script>
+</html>

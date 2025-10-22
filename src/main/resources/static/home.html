@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Home</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+<h1>Welcome to the Homepage of a Restaurant Page</h1>
+
+
+<nav id="nav">
+    <ul>
+        <li><a href="/allReservations.html"><i class="fas fa-info-circle"></i>All Reservations</a></li>
+        <li><a href="/home.html"><i class="fas fa-envelope"></i>Home</a></li>
+        <li><a href="/reservation.html"><i class="fas fa-calendar-check"></i> Reservation</a></li>
+        <li id="menu" onclick=""><i class="fas fa-hamburger"></i> Menu</li>
+    </ul>
+</nav>
+
+
+<nav id ="dropdown">
+    <ul>
+        <li id="close-btn"><button>X</button></li>
+        <li>Fruhstuck</li>
+        <li>Salat</li>
+        <li>Pizza</li>
+        <li>Burger</li>
+    </ul>
+
+</nav>
+
+
+<footer>
+    <p>Copyright &copy; 2025</p>
+    <p>All Rights Reserved</p>
+
+</footer>
+<script>
+    const dropdown = document.getElementById("dropdown");
+const closeBtn = document.getElementById("close-btn");
+
+closeBtn.addEventListener("click", function() {
+    dropdown.style.display = "none";
+});
+    const menuButton = document.getElementById("menu");
+    menuButton.addEventListener("click", function() {
+        if (dropdown.style.display === "none") {
+            dropdown.style.display = "block";
+        }else {
+            dropdown.style.display = "none";
+        }
+    });
+
+    window.addEventListener("click", function (event) {
+        if (!menuButton.contains(event.target) && !dropdown.contains(event.target)) {
+            dropdown.style.display = "none";
+        }
+    });
+
+</script>
+
+</body>
+</html>
