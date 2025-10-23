@@ -3,6 +3,8 @@ package org.example.reservationsystem.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.example.reservationsystem.DTO.ReservationRequestDTO;
+import org.example.reservationsystem.DTO.ReservationViewDTO;
+import org.example.reservationsystem.DTO.TableViewDTO;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.Reservation;
 import org.example.reservationsystem.model.RestaurantTable;
@@ -12,13 +14,18 @@ import org.example.reservationsystem.service.ReservationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Locale;
 
 @CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true")
 @RestController
@@ -27,7 +34,7 @@ public class ReservationController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ReservationController.class);
 
-    // Dauergrenzen in Minuten (30–300)
+    // Dozwolony zakres minut (dla endpointu /available)
     private static final int MIN_MINUTES = 30;
     private static final int MAX_MINUTES = 300;
 
@@ -47,34 +54,31 @@ public class ReservationController {
         this.reservationRepository = reservationRepository;
     }
 
-    /**
-     * Erstellt eine neue Reservierung.
-     * Erwartet: JWT im Cookie "token", sowie ReservationRequestDTO (Tischnummer + Reservierung).
-     *
-     * @param request HTTP-Request (für JWT-Cookie)
-     * @param dto      Daten der Reservierungsanfrage
-     * @return 200 OK mit gespeicherter Reservierung, 401 wenn nicht eingeloggt,
-     *         409 bei Zeitüberschneidung, 500 bei unerwarteten Fehlern.
-     */
+    // ---------------------------------------------------------------------
+    // POST /api/reservations — utwórz rezerwację z DTO (tableNumber, start, end)
+    // Zwraca: ReservationViewDTO (lekki payload, bez encji i proxy)
+    // ---------------------------------------------------------------------
     @PostMapping
-    public ResponseEntity<Reservation> createReservation(HttpServletRequest request,
-                                                         @RequestBody ReservationRequestDTO dto) {
+    public ResponseEntity<ReservationViewDTO> createReservation(HttpServletRequest request,
+                                                                @RequestBody ReservationRequestDTO dto) {
         LOGGER.info("Reservierungsanfrage erhalten");
-
         final String username = extractUsernameFromToken(request);
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
         final int tableNumber = dto.getTableNumber();
-        final Reservation reservation = dto.getReservation();
+        final LocalDateTime start = dto.getStartTime();
+        final LocalDateTime end   = dto.getEndTime(); // może być null — serwis sam ustawi domyślne +2h
+
+        // budujemy encję tylko z czasami
+        Reservation reservation = new Reservation(start, end);
 
         try {
             Reservation saved = reservationService.addReservation(reservation, tableNumber, username);
-            LOGGER.info("Reservierung erfolgreich gespeichert");
-            return ResponseEntity.ok(saved);
+            return ResponseEntity.ok(toDto(saved));
         } catch (IllegalStateException e) {
-            // z. B. Zeitüberschneidung
+            // np. kolizja czasu lub użytkownik ma już rezerwację
             LOGGER.warn("Reservierung fehlgeschlagen: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).build();
         } catch (Exception e) {
@@ -83,53 +87,46 @@ public class ReservationController {
         }
     }
 
-    /**
-     * Löscht eine Reservierung.
-     *
-     * @param id ID der Reservierung
-     * @return 204 No Content
-     */
+    // ---------------------------------------------------------------------
+    // DELETE /api/reservations/{id} — usuń rezerwację
+    // ---------------------------------------------------------------------
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReservation(@PathVariable Long id) {
         reservationService.deleteReservation(id);
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Liefert die Reservierung des eingeloggten Benutzers.
-     *
-     * @param request HTTP-Request (für JWT-Cookie)
-     * @return 200 OK mit Reservierung, 204 No Content wenn keine vorhanden,
-     *         401 wenn nicht eingeloggt, 500 bei Fehler.
-     */
+    // ---------------------------------------------------------------------
+    // GET /api/reservations/userReservations — rezerwacja zalogowanego użytkownika
+    // Zwraca: 200 + ReservationViewDTO lub 204, jeśli brak rezerwacji
+    // ---------------------------------------------------------------------
     @GetMapping("/userReservations")
-    public ResponseEntity<Reservation> getUserReservation(HttpServletRequest request) {
+    public ResponseEntity<ReservationViewDTO> getUserReservation(HttpServletRequest request) {
         final String username = extractUsernameFromToken(request);
         if (username == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-
         try {
-            Reservation reservation = reservationService.getUserReservation(username);
-            if (reservation != null) {
-                return ResponseEntity.ok(reservation);
-            }
-            return ResponseEntity.noContent().build();
+            Reservation r = reservationService.getUserReservation(username);
+            if (r == null) return ResponseEntity.noContent().build();
+            return ResponseEntity.ok(toDto(r));
         } catch (Exception e) {
             LOGGER.error("Fehler beim Abrufen der Benutzerreservierung: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    /**
-     * Liefert alle Reservierungen (z. B. für Admin-Zwecke).
-     *
-     * @return 200 OK mit Liste
-     */
+    // ---------------------------------------------------------------------
+    // GET /api/reservations/all — wszystkie rezerwacje (np. dla admina)
+    // Zwraca listę DTO (nie encji)
+    // ---------------------------------------------------------------------
     @GetMapping("/all")
-    public ResponseEntity<List<Reservation>> getAllReservations() {
+    public ResponseEntity<List<ReservationViewDTO>> getAllReservations() {
         try {
-            List<Reservation> all = reservationService.getAllReservations();
+            List<ReservationViewDTO> all = reservationService.getAllReservations()
+                    .stream()
+                    .map(this::toDto)
+                    .toList();
             return ResponseEntity.ok(all);
         } catch (Exception e) {
             LOGGER.error("Fehler beim Abrufen aller Reservierungen: {}", e.getMessage(), e);
@@ -137,63 +134,113 @@ public class ReservationController {
         }
     }
 
-    /**
-     * Liefert alle verfügbaren Tische für ein Zeitfenster.
-     * Es werden ausschließlich freie Tische zurückgegeben (keine Zeitüberschneidung).
-     *
-     * Request-Parameter:
-     * - start: ISO-Datum/Zeit (z. B. 2025-10-22T18:00:00)
-     * - minutes: gewünschte Dauer in Minuten (wird auf 30–300 geklemmt)
-     *
-     * @return 200 OK mit Liste verfügbarer Tische, 500 bei Fehler.
-     */
+    // ---------------------------------------------------------------------
+    // GET /api/reservations/available?start=...&minutes=...
+    // Zwraca TYLKO wolne stoliki jako lekkie DTO (brak relacji/kolizji proxy)
+    // ---------------------------------------------------------------------
     @GetMapping("/available")
-    public ResponseEntity<List<RestaurantTable>> getAvailableTables(
-            @RequestParam("start")
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam("minutes") Integer minutes) {
+    public ResponseEntity<List<TableViewDTO>> getAvailableTables(
+            @RequestParam("start") String startParam,
+            @RequestParam("minutes") Integer minutes
+    ) {
         try {
+            LocalDateTime start = parseFlexibleDateTime(startParam);
             final int clamped = clampMinutes(minutes);
             final LocalDateTime end = start.plusMinutes(clamped);
 
-            // frei, wenn KEINE Überschneidung (newStart < existingEnd && newEnd > existingStart -> false)
-            List<RestaurantTable> available = tableRepository.findAll().stream()
+            List<TableViewDTO> available = tableRepository.findAll().stream()
                     .filter(table -> !reservationRepository
                             .existsByTable_IdAndStartTimeLessThanAndEndTimeGreaterThan(
                                     table.getId(), end, start))
+                    .map(this::toDto)
                     .toList();
 
             return ResponseEntity.ok(available);
+        } catch (DateTimeParseException ex) {
+            // błędny format daty — frontend dostaje 400 i pustą listę
+            return ResponseEntity.badRequest().body(List.of());
         } catch (Exception e) {
             LOGGER.error("Fehler beim Ermitteln verfügbarer Tische: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 
-    // ------------------------------------------------------------
-    // Hilfsfunktionen
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // Mappers → Encje -> DTO (żadnej serializacji encji na zewnątrz)
+    // ---------------------------------------------------------------------
+    private ReservationViewDTO toDto(Reservation r) {
+        return new ReservationViewDTO(
+                r.getId(),
+                r.getUser()  != null ? r.getUser().getUsername() : null,
+                r.getTable() != null ? r.getTable().getTableNumber() : null,
+                r.getStartTime(),
+                r.getEndTime()
+        );
+    }
 
-    /** Liest den Benutzernamen aus dem JWT-Cookie "token". */
+    private TableViewDTO toDto(RestaurantTable t) {
+        return new TableViewDTO(
+                t.getId(),
+                t.getTableNumber(),
+                t.getNumberOfSeats()
+        );
+    }
+
+
+
+
+    // ---------------------------------------------------------------------
+    // Parsowanie czasu: akceptujemy "yyyy-MM-dd'T'HH:mm[:ss][.SSS]" oraz ISO z offsetem/Z
+    // ---------------------------------------------------------------------
+    private static LocalDateTime parseFlexibleDateTime(String raw) {
+        if (raw == null) throw new DateTimeParseException("null", "", 0);
+
+        String norm = raw.trim().replace(' ', 'T');
+        if ((norm.startsWith("\"") && norm.endsWith("\"")) || (norm.startsWith("'") && norm.endsWith("'"))) {
+            norm = norm.substring(1, norm.length() - 1);
+        }
+
+        var flex = new DateTimeFormatterBuilder()
+                .appendPattern("yyyy-MM-dd'T'HH:mm")
+                .optionalStart().appendPattern(":ss").optionalEnd()
+                .optionalStart().appendPattern(".SSS").optionalEnd()
+                .toFormatter(Locale.ROOT);
+
+        try {
+            return LocalDateTime.parse(norm, flex);
+        } catch (DateTimeParseException ignore) { }
+
+        try {
+            OffsetDateTime odt = OffsetDateTime.parse(norm);
+            return odt.toLocalDateTime();
+        } catch (DateTimeParseException ignore) { }
+
+        try {
+            Instant inst = Instant.parse(norm);
+            return LocalDateTime.ofInstant(inst, ZoneId.systemDefault());
+        } catch (DateTimeParseException ignore) { }
+
+        throw new DateTimeParseException("Unsupported datetime format", norm, 0);
+    }
+
+    // ---------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------
     private String extractUsernameFromToken(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) return null;
-
         for (Cookie cookie : cookies) {
             if ("token".equals(cookie.getName())) {
                 try {
                     return jwtService.getUsername(cookie.getValue());
-                } catch (Exception ignored) {
-                    // ungültiges/abgelaufenes Token
-                }
+                } catch (Exception ignored) { }
             }
         }
         return null;
     }
 
-    /** Begrenzt die angefragte Dauer auf 30–300 Minuten. */
     private static int clampMinutes(Integer minutes) {
-        if (minutes == null) return MIN_MINUTES; // defensiver Default
+        if (minutes == null) return MIN_MINUTES;
         if (minutes < MIN_MINUTES) return MIN_MINUTES;
         if (minutes > MAX_MINUTES) return MAX_MINUTES;
         return minutes;

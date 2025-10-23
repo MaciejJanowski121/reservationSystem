@@ -1,6 +1,6 @@
 package org.example.reservationsystem;
 
-import org.example.reservationsystem.DTO.UserDTO;
+import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -30,7 +30,7 @@ public class AuthIntegrationTest {
     public void shouldRegisterLoginAndCheckAuthSuccessfully() throws Exception {
         // Einzigartigen Benutzernamen generieren
         String username = "maciej_" + System.currentTimeMillis();
-        UserDTO userDTO = new UserDTO(username, "test123");
+        UserRegisterDTO userDTO = new UserRegisterDTO(username, "test123");
 
         // Registrierung des Benutzers
         mockMvc.perform(post("/auth/register")

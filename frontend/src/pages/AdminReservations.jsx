@@ -1,44 +1,73 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import '../styles/adminreservations.css';
+import "../styles/adminreservations.css";
 
 function AdminReservations() {
     const [reservations, setReservations] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState("");
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetch("http://localhost:8080/api/reservations/all", {
-            credentials: "include",
-        })
-            .then(res => res.json())
-            .then(data => setReservations(data || []))
-            .catch(err => console.error("Fehler beim Abrufen der Reservierungen:", err))
-            .finally(() => setLoading(false));
+        const load = async () => {
+            setLoading(true);
+            setErrorMsg("");
+            try {
+                const res = await fetch("http://localhost:8080/api/reservations/all", {
+                    credentials: "include",
+                });
+
+                if (!res.ok) {
+                    // pokaż błąd zamiast udawać, że lista jest pusta
+                    const text = await res.text();
+                    setErrorMsg(
+                        text || (res.status === 401 || res.status === 403
+                            ? "Brak uprawnień (zaloguj się jako admin)."
+                            : `Błąd ${res.status}`)
+                    );
+                    setReservations([]);
+                    return;
+                }
+
+                // Oczekujemy listy ReservationViewDTO: { id, username, tableNumber, startTime, endTime }
+                const data = await res.json();
+                setReservations(Array.isArray(data) ? data : []);
+            } catch (e) {
+                console.error(e);
+                setErrorMsg(e.message || "Nie udało się pobrać rezerwacji.");
+                setReservations([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        load();
     }, []);
 
     const formatDateTime = (start, end) => {
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-
-        const d = startDate.toLocaleDateString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric"
-        });
-
-        const t1 = startDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-        const t2 = endDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-
+        const s = new Date(start);
+        const e = new Date(end);
+        const d = s.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+        const t1 = s.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+        const t2 = e.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
         return `${d} – ${t1} bis ${t2} Uhr`;
     };
-    const deleteReservation = (id) => {
-        fetch(`http://localhost:8080/api/reservations/${id}`, {
-            method: "DELETE",
-            credentials: "include"
-        })
-            .then(() => setReservations(prev => prev.filter(r => r.id !== id)))
-            .catch(err => console.error("Fehler beim Löschen der Reservierung:", err));
+
+    const deleteReservation = async (id) => {
+        try {
+            const res = await fetch(`http://localhost:8080/api/reservations/${id}`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (!res.ok) {
+                const t = await res.text();
+                throw new Error(t || `Löschen fehlgeschlagen: ${res.status}`);
+            }
+            setReservations(prev => prev.filter(r => r.id !== id));
+        } catch (err) {
+            console.error("Fehler beim Löschen der Reservierung:", err);
+            setErrorMsg(err.message || "Błąd podczas usuwania rezerwacji.");
+        }
     };
 
     return (
@@ -57,6 +86,8 @@ function AdminReservations() {
                         <div className="skeleton-row" />
                         <div className="skeleton-row" />
                     </div>
+                ) : errorMsg ? (
+                    <p className="empty-state">{errorMsg}</p>
                 ) : reservations.length === 0 ? (
                     <p className="empty-state">Keine Reservierungen gefunden.</p>
                 ) : (
@@ -64,8 +95,8 @@ function AdminReservations() {
                         {reservations.map(res => (
                             <li key={res.id} className="res-row">
                                 <div className="reservation-info">
-                                    <div><strong>Name:</strong> {res.name}</div>
-                                    <div><strong>Tisch:</strong> {res.table?.tableNumber ?? "?"}</div>
+                                    <div><strong>Benutzer:</strong> {res.username ?? "–"}</div>
+                                    <div><strong>Tisch:</strong> {res.tableNumber ?? "?"}</div>
                                     <div><strong>Zeit:</strong> {formatDateTime(res.startTime, res.endTime)}</div>
                                 </div>
 
@@ -73,7 +104,7 @@ function AdminReservations() {
                                     type="button"
                                     className="delete-btn"
                                     onClick={() => deleteReservation(res.id)}
-                                    aria-label={`Reservierung von ${res.name} löschen`}
+                                    aria-label={`Reservierung ${res.id} löschen`}
                                 >
                                     Löschen
                                 </button>

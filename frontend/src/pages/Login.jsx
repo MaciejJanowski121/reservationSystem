@@ -1,6 +1,6 @@
-import '../styles/loginAndRegister.css';
+import "../styles/loginAndRegister.css";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 function Login() {
     const [username, setUsername] = useState("");
@@ -8,7 +8,9 @@ function Login() {
     const [showPwd, setShowPwd] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
+
     const navigate = useNavigate();
+    const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -16,27 +18,44 @@ function Login() {
         setSubmitting(true);
 
         try {
-            const res = await fetch("http://localhost:8080/auth/login", {
+            const res = await fetch(`${API}/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username, password }), // UserLoginDTO
             });
 
-            if (res.ok) {
-                const data = await res.json(); // { username, role }
-                if (data.role === "ROLE_ADMIN") navigate("/admin");
-                else navigate("/myaccount");
-            } else {
+            if (!res.ok) {
                 const text = await res.text();
-                setErrorMsg(text || "Login fehlgeschlagen.");
+                throw new Error(text || "Login fehlgeschlagen.");
             }
+
+            // Odpowiedź z backendu: { username, role, fullName, email, phone }
+            const data = await res.json();
+
+            // Zapisz kontekst użytkownika (prosto: localStorage; możesz to zamienić na Context/Redux)
+            localStorage.setItem(
+                "authUser",
+                JSON.stringify({
+                    username: data.username,
+                    role: data.role,
+                    fullName: data.fullName,
+                    email: data.email,
+                    phone: data.phone,
+                })
+            );
+
+            // Routing wg roli
+            if (data.role === "ROLE_ADMIN") navigate("/admin");
+            else navigate("/myaccount");
         } catch (err) {
             setErrorMsg(err.message || "Ein Fehler ist aufgetreten.");
         } finally {
             setSubmitting(false);
         }
     }
+
+    const isDisabled = submitting || !username.trim() || !password;
 
     return (
         <main className="auth-page" aria-label="Login">
@@ -86,7 +105,7 @@ function Login() {
                         </div>
                     </div>
 
-                    <button className="auth-btn" type="submit" disabled={submitting}>
+                    <button className="auth-btn" type="submit" disabled={isDisabled}>
                         {submitting ? <span className="spinner" aria-hidden="true" /> : null}
                         {submitting ? "Wird eingeloggt…" : "Login"}
                     </button>

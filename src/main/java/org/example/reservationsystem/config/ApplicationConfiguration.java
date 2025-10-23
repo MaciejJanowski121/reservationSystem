@@ -47,6 +47,9 @@ public class ApplicationConfiguration {
         return new ProviderManager(authenticationProvider);
     }
 
+
+
+
     // Konfiguration des DaoAuthenticationProviders mit UserDetailsService und Passwort-Encoder
     @Bean
     public AuthenticationProvider authenticationProvider() {

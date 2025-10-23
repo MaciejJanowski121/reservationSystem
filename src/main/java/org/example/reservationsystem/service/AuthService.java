@@ -1,11 +1,13 @@
 package org.example.reservationsystem.service;
 
-import org.example.reservationsystem.DTO.UserDTO;
+import org.example.reservationsystem.DTO.UserLoginDTO;
+import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.example.reservationsystem.JWTServices.JwtAuthenticationFilter;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.Role;
 import org.example.reservationsystem.model.User;
 import org.example.reservationsystem.repository.UserRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,27 +19,43 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
     private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtAuthenticationFilter jwtAuthenticationFilter,JwtService jwtService ) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       JwtAuthenticationFilter jwtAuthenticationFilter,
+                       JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.jwtService = jwtService;
     }
 
-
-    public String register(UserDTO userDTO) {
-        System.out.println("Registering user: " + userDTO.getUsername());
-
+    // Registrierung inkl. Profildaten
+    public String register(UserRegisterDTO userDTO) {
         String encodedPassword = passwordEncoder.encode(userDTO.getPassword());
-        User newUser = new User(userDTO.getUsername(), encodedPassword, Role.ROLE_USER);
-        userRepository.save(newUser);
-        String token = jwtService.generateToken(newUser);
-        return token;
+
+        User newUser = new User(
+                userDTO.getUsername(),
+                encodedPassword,
+                Role.ROLE_USER,
+                userDTO.getFullName(),
+                userDTO.getEmail(),
+                userDTO.getPhone()
+        );
+
+        try {
+            userRepository.save(newUser);
+        } catch (DataIntegrityViolationException ex) {
+            // z. B. doppelter username/e-mail
+            throw ex;
+        }
+
+        return jwtService.generateToken(newUser);
     }
-    public String login(UserDTO userDTO) {
+
+    // Login mit UserLoginDTO
+    public String login(UserLoginDTO userDTO) {
         User user = userRepository.findByUsername(userDTO.getUsername())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
@@ -48,5 +66,3 @@ public class AuthService {
         return jwtService.generateToken(user);
     }
 }
-
-

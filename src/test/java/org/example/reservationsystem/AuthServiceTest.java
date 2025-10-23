@@ -1,6 +1,6 @@
 package org.example.reservationsystem;
 
-import org.example.reservationsystem.DTO.UserDTO;
+import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.example.reservationsystem.JWTServices.JwtAuthenticationFilter;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.Role;
@@ -38,12 +38,12 @@ class AuthServiceTest {
     @InjectMocks
     private AuthService authService;
 
-    private UserDTO userDTO;
+    private UserRegisterDTO userDTO;
     private User user;
 
     @BeforeEach
     void setUp() {
-        userDTO = new UserDTO("testuser", "password123");
+        userDTO = new UserRegisterDTO("testuser", "password123");
         user = new User("testuser", "encodedPassword", Role.ROLE_USER);
     }
 

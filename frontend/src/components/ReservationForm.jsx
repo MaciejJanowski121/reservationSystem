@@ -2,18 +2,15 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 function ReservationForm({ setReservation }) {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
-    const [startTime, setStartTime] = useState("");     // "YYYY-MM-DDTHH:mm"
-    const [minutes, setMinutes] = useState(120);        // default 2h
+    const [startTime, setStartTime] = useState("");  // "YYYY-MM-DDTHH:mm"
+    const [minutes, setMinutes] = useState(120);     // 30..300
     const [tableNumber, setTableNumber] = useState("");
     const [availableTables, setAvailableTables] = useState([]);
 
     const navigate = useNavigate();
     const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
 
-    // Helper: convert Date → "YYYY-MM-DDTHH:mm:ss"
+    // Helper: Date -> "YYYY-MM-DDTHH:mm:ss"
     const toIsoWithSeconds = (date) => {
         const pad = (n) => (n < 10 ? "0" + n : n);
         return (
@@ -26,17 +23,15 @@ function ReservationForm({ setReservation }) {
         );
     };
 
-    // Parse datetime-local input → Date (adds :00 seconds)
     const parseLocalDateTime = (value) => (value ? new Date(value + ":00") : null);
 
-    // 1️Fetch available tables for (start, minutes)
+    // Fetch available tables for (start, minutes)
     useEffect(() => {
         const fetchAvailable = async () => {
             if (!startTime || !minutes) {
                 setAvailableTables([]);
                 return;
             }
-
             const start = parseLocalDateTime(startTime);
             if (!start) return;
 
@@ -60,7 +55,7 @@ function ReservationForm({ setReservation }) {
         fetchAvailable();
     }, [startTime, minutes, API]);
 
-    // 2️⃣ Clear selected table if it's no longer available
+    // Clear the selected table if it disappears from availability
     useEffect(() => {
         if (!tableNumber) return;
         const stillAvailable = availableTables.some(
@@ -73,33 +68,19 @@ function ReservationForm({ setReservation }) {
         e.preventDefault();
 
         const start = parseLocalDateTime(startTime);
-        if (!start) {
-            alert("Please select a start time.");
-            return;
-        }
-        if (start < new Date()) {
-            alert(" You cannot book a reservation in the past!");
-            return;
-        }
-        if (!minutes || minutes < 30 || minutes > 300) {
-            alert("Duration must be between 30 and 300 minutes.");
-            return;
-        }
-        if (!tableNumber) {
-            alert("Please select a table.");
-            return;
-        }
+        if (!start) return alert("Wybierz godzinę rozpoczęcia.");
+        if (start < new Date()) return alert("Nie możesz zarezerwować czasu w przeszłości.");
+        if (!minutes || minutes < 30 || minutes > 300)
+            return alert("Czas trwania musi być między 30 a 300 minut.");
+        if (!tableNumber) return alert("Wybierz stolik.");
 
         const end = new Date(start.getTime() + minutes * 60 * 1000);
+
+        // NOWY payload: bez name/email/phone i bez zagnieżdżonego 'reservation'
         const payload = {
             tableNumber: Number(tableNumber),
-            reservation: {
-                name,
-                email,
-                phone,
-                startTime: toIsoWithSeconds(start),
-                endTime: toIsoWithSeconds(end),
-            },
+            startTime: toIsoWithSeconds(start),
+            endTime: toIsoWithSeconds(end),
         };
 
         try {
@@ -116,15 +97,15 @@ function ReservationForm({ setReservation }) {
             }
 
             const data = await resp.json();
-            setReservation([data]);
+            setReservation([data]);  // dostosuj, jeśli oczekujesz innej struktury
             navigate("/reservations/my");
         } catch (err) {
             console.error(err);
-            alert(" Reservation failed: " + err.message);
+            alert("Rezerwacja nie powiodła się: " + err.message);
         }
     };
 
-    // Minimum date/time for input (current moment, rounded to minutes)
+    // Min dla datetime-local (teraz)
     const nowLocalForMin = useMemo(() => {
         const d = new Date();
         d.setSeconds(0, 0);
@@ -134,30 +115,6 @@ function ReservationForm({ setReservation }) {
 
     return (
         <form onSubmit={handleSubmit} className="reservation-form">
-            <input
-                type="text"
-                placeholder="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-            />
-
-            <input
-                type="email"
-                placeholder="E-Mail"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-            />
-
-            <input
-                type="tel"
-                placeholder="Phone number"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-            />
-
             {/* Start time */}
             <input
                 type="datetime-local"
@@ -167,16 +124,15 @@ function ReservationForm({ setReservation }) {
                 required
             />
 
-            {/* Duration (30–300 minutes, step 30) */}
+            {/* Duration (30–300, step 30) */}
             <select
                 value={minutes}
                 onChange={(e) => setMinutes(Number(e.target.value))}
                 required
             >
                 {[...Array(10)].map((_, i) => {
-                    const m = (i + 1) * 30; // 30, 60, …, 300
-                    const label =
-                        m < 60 ? `${m} minutes` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+                    const m = (i + 1) * 30;
+                    const label = m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
                     return (
                         <option key={m} value={m}>
                             {label}
@@ -185,21 +141,21 @@ function ReservationForm({ setReservation }) {
                 })}
             </select>
 
-            {/* Available tables only */}
+            {/* Only available tables */}
             <select
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 required
             >
-                <option value="">Select a table...</option>
+                <option value="">Wybierz stolik…</option>
                 {availableTables.map((t) => (
                     <option key={t.id} value={t.tableNumber}>
-                        Table {t.tableNumber} ({t.numberOfSeats} seats)
+                        Stolik {t.tableNumber} ({t.numberOfSeats} os.)
                     </option>
                 ))}
             </select>
 
-            <button type="submit">Reserve</button>
+            <button type="submit">Zarezerwuj</button>
         </form>
     );
 }

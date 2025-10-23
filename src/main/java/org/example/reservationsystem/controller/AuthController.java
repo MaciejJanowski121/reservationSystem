@@ -3,7 +3,8 @@ package org.example.reservationsystem.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.example.reservationsystem.DTO.UserDTO;
+import org.example.reservationsystem.DTO.UserLoginDTO;
+import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.example.reservationsystem.JWTServices.JwtAuthenticationFilter;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.User;
@@ -27,7 +28,11 @@ public class AuthController {
     private final UserDetailsService userDetailsService;
     private final UserRepository userRepository;
 
-    public AuthController(AuthService authService, JwtAuthenticationFilter jwtAuthenticationFilter, JwtService jwtService, UserDetailsService userDetailsService, UserRepository userRepository) {
+    public AuthController(AuthService authService,
+                          JwtAuthenticationFilter jwtAuthenticationFilter,
+                          JwtService jwtService,
+                          UserDetailsService userDetailsService,
+                          UserRepository userRepository) {
         this.authService = authService;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.jwtService = jwtService;
@@ -35,23 +40,29 @@ public class AuthController {
         this.userRepository = userRepository;
     }
 
-    // Registrierung eines neuen Benutzers und Setzen des JWT-Cookies
+    // Registrierung: nimmt UserRegisterDTO (username, password, fullName, email, phone) an
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> register(@RequestBody UserDTO userDTO, HttpServletResponse response) {
+    public ResponseEntity<?> register(@RequestBody UserRegisterDTO userDTO, HttpServletResponse response) {
         String token = authService.register(userDTO);
 
-        Cookie cookie = new Cookie("token", token); // JWT als HttpOnly-Cookie setzen
+        Cookie cookie = new Cookie("token", token); // JWT als HttpOnly-Cookie
         cookie.setHttpOnly(true);
         cookie.setPath("/");
-        cookie.setMaxAge(60 * 60 * 24); // Cookie ist 1 Tag gültig
+        cookie.setMaxAge(60 * 60 * 24);
+        // cookie.setSecure(true); // aktivieren, wenn HTTPS
         response.addCookie(cookie);
 
-        return ResponseEntity.ok(userDTO);
+        return ResponseEntity.ok(Map.of(
+                "username", userDTO.getUsername(),
+                "fullName", userDTO.getFullName(),
+                "email",    userDTO.getEmail(),
+                "phone",    userDTO.getPhone()
+        ));
     }
 
-    // Login eines Benutzers, Rückgabe von Rolle und Username
+    // Login: nimmt UserLoginDTO (username, password) an
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody UserDTO userDTO, HttpServletResponse response) {
+    public ResponseEntity<?> login(@RequestBody UserLoginDTO userDTO, HttpServletResponse response) {
         try {
             String token = authService.login(userDTO);
 
@@ -59,6 +70,7 @@ public class AuthController {
             cookie.setHttpOnly(true);
             cookie.setPath("/");
             cookie.setMaxAge(60 * 60 * 24);
+            // cookie.setSecure(true); // aktivieren, wenn HTTPS
             response.addCookie(cookie);
 
             User user = userRepository.findByUsername(userDTO.getUsername())
@@ -66,7 +78,10 @@ public class AuthController {
 
             return ResponseEntity.ok(Map.of(
                     "username", user.getUsername(),
-                    "role", user.getRole().name()
+                    "role",     user.getRole().name(),
+                    "fullName", user.getFullName(),
+                    "email",    user.getEmail(),
+                    "phone",    user.getPhone()
             ));
 
         } catch (UsernameNotFoundException | BadCredentialsException e) {
@@ -74,36 +89,35 @@ public class AuthController {
         }
     }
 
-    // Authentifizierungsprüfung anhand des JWT-Cookies
+    // Auth-Check via JWT-Cookie
     @GetMapping("/auth_check")
     public ResponseEntity<?> checkAuth(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
-
         if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                if (cookie.getName().equals("token")) {
-                    String token = cookie.getValue();
-                    String username = jwtService.getUsername(token);
+            for (Cookie c : cookies) {
+                if ("token".equals(c.getName())) {
+                    String username = jwtService.getUsername(c.getValue());
                     User user = (User) userDetailsService.loadUserByUsername(username);
-
                     return ResponseEntity.ok(Map.of(
                             "username", user.getUsername(),
-                            "role", user.getRole().name()
+                            "role",     user.getRole().name(),
+                            "fullName", user.getFullName(),
+                            "email",    user.getEmail(),
+                            "phone",    user.getPhone()
                     ));
                 }
             }
         }
-
         return ResponseEntity.status(HttpServletResponse.SC_UNAUTHORIZED).body("Invalid Token");
     }
 
-    // Benutzer-Logout – Cookie wird gelöscht
+    // Logout: Cookie löschen
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletResponse response) {
         Cookie cookie = new Cookie("token", null);
         cookie.setHttpOnly(true);
         cookie.setPath("/");
-        cookie.setMaxAge(0); // Cookie sofort ungültig
+        cookie.setMaxAge(0);
         response.addCookie(cookie);
         return ResponseEntity.ok().build();
     }

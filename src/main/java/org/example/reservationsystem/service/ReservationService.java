@@ -1,7 +1,7 @@
 package org.example.reservationsystem.service;
 
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.example.reservationsystem.exceptions.TableNotFoundException;
 import org.example.reservationsystem.exceptions.UserNotFoundException;
 import org.example.reservationsystem.model.Reservation;
@@ -22,9 +22,9 @@ import java.util.List;
 public class ReservationService {
 
     // Zeitregeln: min. 30 Min, max. 5 Std, Standarddauer 2 Std
-    private static final Duration MIN_DURATION      = Duration.ofMinutes(30);
-    private static final Duration MAX_DURATION      = Duration.ofHours(5);
-    private static final Duration DEFAULT_DURATION  = Duration.ofHours(2);
+    private static final Duration MIN_DURATION     = Duration.ofMinutes(30);
+    private static final Duration MAX_DURATION     = Duration.ofHours(5);
+    private static final Duration DEFAULT_DURATION = Duration.ofHours(2);
 
     private final ReservationRepository reservationRepository;
     private final TableRepository       tableRepository;
@@ -48,32 +48,32 @@ public class ReservationService {
      * - Gültige Dauer: 30–300 Minuten, startTime in der Zukunft, endTime > startTime.
      * - Zeitüberschneidungen werden in der DB geprüft (Berühren der Grenzen ist erlaubt).
      *
-     * @param reservation  Reservierungsdaten (mit startTime/endTime)
+     * @param reservation  Reservierungsdaten (startTime/endTime)
      * @param tableNumber  Tischnummer
      * @param username     Benutzername (aus JWT)
      * @return gespeicherte Reservierung
      */
     public Reservation addReservation(Reservation reservation, int tableNumber, String username) {
-        // Benutzer auflösen und Regel „nur 1 aktive Reservierung“ prüfen
+        // Benutzer laden + prüfen, dass keine aktive Reservierung existiert
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
         if (user.getReservation() != null) {
             throw new IllegalStateException("User already has a reservation.");
         }
 
-        // Tisch auflösen
+        // Tisch laden
         RestaurantTable table = tableRepository.findTableByTableNumber(tableNumber)
                 .orElseThrow(() -> new TableNotFoundException("Table with number " + tableNumber + " does not exist."));
 
-        // endTime automatisch setzen, wenn nur startTime angegeben wurde
+        // endTime automatisch, falls nicht gesetzt
         if (reservation.getStartTime() != null && reservation.getEndTime() == null) {
             reservation.setEndTime(reservation.getStartTime().plus(DEFAULT_DURATION));
         }
 
-        // Eingaben/Zeiten validieren
+        // Zeiten validieren
         validateReservationInput(reservation);
 
-        // Zeitüberschneidung in der DB prüfen (newStart < existingEnd && newEnd > existingStart)
+        // Overlap-Check in der DB: newStart < existingEnd && newEnd > existingStart
         boolean overlaps = reservationRepository
                 .existsByTable_IdAndStartTimeLessThanAndEndTimeGreaterThan(
                         table.getId(),
@@ -89,7 +89,7 @@ public class ReservationService {
         reservation.setTable(table);
         user.setReservation(reservation);
 
-        // (optional) in-memory Konsistenz der Tisch-Reservierungsliste
+        // (optional) Konsistenz der Tischliste im Speicher
         if (table.getReservations() != null) {
             table.getReservations().add(reservation);
         }
@@ -100,18 +100,15 @@ public class ReservationService {
         return saved;
     }
 
-    /**
-     * Liefert die Reservierung des eingeloggten Benutzers.
-     */
+    /** Liefert die Reservierung des eingeloggten Benutzers. */
+    @Transactional(readOnly = true)
     public Reservation getUserReservation(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
         return user.getReservation();
     }
 
-    /**
-     * Löscht eine Reservierung und räumt Relationen zu Tisch/Benutzer auf.
-     */
+    /** Löscht eine Reservierung und räumt Relationen zu Tisch/Benutzer auf. */
     public void deleteReservation(Long id) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Reservation not found"));
@@ -135,36 +132,22 @@ public class ReservationService {
         reservationRepository.delete(reservation);
     }
 
-    /**
-     * Liefert alle Reservierungen (z. B. für Admin).
-     */
+    /** Alle Reservierungen (z. B. für Admin). */
     public List<Reservation> getAllReservations() {
+
         return reservationRepository.findAll();
     }
 
-    /**
-     * Hilfsfunktion: Benutzer per Username laden.
-     */
+    /** Hilfsfunktion: Benutzer per Username laden. */
     public User getUserByUsername(String username) {
         return userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("Benutzer nicht gefunden"));
     }
 
-    /**
-     * Validiert Pflichtfelder und Zeitregeln.
-     *
-     * Anforderungen:
-     * - name: nicht leer
-     * - startTime: vorhanden & in der Zukunft
-     * - endTime: vorhanden & nach startTime
-     * - Dauer: 30–300 Minuten
-     */
+    /** Validiert Pflichtfelder und Zeitregeln (30–300 Min, Zukunft, end > start). */
     private void validateReservationInput(Reservation r) {
         if (r == null) {
             throw new IllegalArgumentException("Reservation cannot be null.");
-        }
-        if (r.getName() == null || r.getName().isBlank()) {
-            throw new IllegalArgumentException("Reservation name cannot be empty.");
         }
         if (r.getStartTime() == null) {
             throw new IllegalArgumentException("Reservation must have start time.");

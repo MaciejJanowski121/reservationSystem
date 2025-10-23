@@ -2,32 +2,19 @@ package org.example.reservationsystem.DTO;
 
 import org.example.reservationsystem.model.Reservation;
 
+import java.time.LocalDateTime;
+
 public class ReservationRequestDTO {
-
-    private Reservation reservation;
     private int tableNumber;
+    private LocalDateTime startTime;
+    private LocalDateTime endTime; // albo zamiast tego minutes (jeśli wolisz)
 
-    public ReservationRequestDTO(Reservation reservation, int tableNumber) {
-        this.reservation = reservation;
-        this.tableNumber = tableNumber;
-    }
+    public int getTableNumber() { return tableNumber; }
+    public void setTableNumber(int tableNumber) { this.tableNumber = tableNumber; }
 
-    public ReservationRequestDTO() {};
+    public LocalDateTime getStartTime() { return startTime; }
+    public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
 
-    // Getter und Setter
-    public Reservation getReservation() {
-        return reservation;
-    }
-
-    public void setReservation(Reservation reservation) {
-        this.reservation = reservation;
-    }
-
-    public int getTableNumber() {
-        return tableNumber;
-    }
-
-    public void setTableNumber(int tableNumber) {
-        this.tableNumber = tableNumber;
-    }
+    public LocalDateTime getEndTime() { return endTime; }
+    public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
 }

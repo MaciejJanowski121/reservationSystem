@@ -24,15 +24,22 @@ public class ReservationSystemApplication {
                                       BCryptPasswordEncoder encoder) {
         return args -> {
 
-            // Tworzymy konto admina jeśli nie istnieje
+            // Admin z kompletnym profilem (pełne dane, aby spełnić NOT NULL)
             if (userRepo.findByUsername("admin").isEmpty()) {
                 String encodedPassword = encoder.encode("admin123");
-                User admin = new User("admin", encodedPassword, Role.ROLE_ADMIN);
+                User admin = new User(
+                        "admin",
+                        encodedPassword,
+                        Role.ROLE_ADMIN,
+                        "Administrator",            // fullName (NOT NULL)
+                        "admin@example.com",        // email    (NOT NULL jeśli tak ustawione)
+                        "+49 160 0000000"           // phone    (może być null, jeśli kolumna nullable)
+                );
                 userRepo.save(admin);
                 System.out.println("✅ Admin user created.");
             }
 
-            // Tworzymy zestaw stolików (numer + liczba miejsc)
+            // Zestaw stolików (tableNumber, seats)
             int[][] tables = {
                     {1, 2}, {2, 3}, {3, 4},
                     {4, 6}, {5, 2}, {6, 8}

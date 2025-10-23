@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,58 +35,81 @@ public class ReservationServiceTest {
 
     @Test
     void testAddReservation_success() {
-        // Given: Benutzer + Tisch
-        User user = new User("testuser", "password", Role.ROLE_USER);
-        userRepository.save(user);
+        // --- Given: Benutzer + Tisch ---
+        User user = new User("testuser", "password", Role.ROLE_USER,
+                "John Doe", "john@example.com", "+49 170 1234567");
+        userRepository.saveAndFlush(user);
 
+        // Jeśli masz konstruktor (int seats, int tableNumber) — użyj go.
+        // W przeciwnym razie ustaw właściwości setterami.
         RestaurantTable table = new RestaurantTable(4, 10);
-        tableRepository.save(table);
+        tableRepository.saveAndFlush(table);
 
-        Reservation reservation = new Reservation();
-        reservation.setReservationTime(LocalDateTime.of(2025, 12, 10, 16, 30));
-        reservation.setName("John");
-        reservation.setEmail("john@example.com");
-        reservation.setPhone("123456789");
+        // Rezerwacja: start w przyszłości, end = start + 2h
+        LocalDateTime start = LocalDateTime.now().plusHours(2);
+        LocalDateTime end   = start.plusHours(2);
 
-        // When
-        Reservation savedReservation = reservationService.addReservation(reservation, 10, "testuser");
+        Reservation reservation = new Reservation(start, end);
 
-        // Then
-        assertNotNull(savedReservation.getId());
-        assertEquals("John", savedReservation.getName());
-        assertEquals("testuser", savedReservation.getUser().getUsername());
-        assertTrue(savedReservation.getTable().isReserved());
+        // --- When ---
+        Reservation saved = reservationService.addReservation(reservation, 10, "testuser");
+
+        // --- Then ---
+        assertNotNull(saved.getId(), "Reservation ID should be generated");
+        assertEquals("testuser", saved.getUser().getUsername());
+        assertNotNull(saved.getTable());
+        assertEquals(10, saved.getTable().getTableNumber());
+
+        // użytkownik ma powiązaną rezerwację
+        User reloadedUser = userRepository.findByUsername("testuser").orElseThrow();
+        assertNotNull(reloadedUser.getReservation());
+        assertEquals(saved.getId(), reloadedUser.getReservation().getId());
+
+        // stolik zawiera rezerwację w swojej liście
+        RestaurantTable reloadedTable = tableRepository.findTableByTableNumber(10).orElseThrow();
+        assertTrue(
+                reloadedTable.getReservations().stream().anyMatch(r -> r.getId().equals(saved.getId())),
+                "Table should contain the saved reservation in its reservations list"
+        );
     }
 
     @Test
     void testDeleteReservation() {
-        // Given: Tisch mit Reservierung
-        RestaurantTable restaurantTable = new RestaurantTable(4, 20);
-        tableRepository.save(restaurantTable);
+        // --- Given: Benutzer + Tisch + istniejąca rezerwacja ---
+        User user = new User("tester", "password", Role.ROLE_USER,
+                "Max Mustermann", "max@example.com", "+49 160 0000000");
+        userRepository.saveAndFlush(user);
 
-        Reservation reservation = new Reservation();
-        reservation.setReservationTime(LocalDateTime.of(2025, 12, 10, 16, 30));
-        reservation.setName("John");
-        reservation.setEmail("john@example.com");
-        reservation.setPhone("123456789");
-        reservation.setTable(restaurantTable);
-        reservationRepository.save(reservation);
+        RestaurantTable table = new RestaurantTable(2, 20);
+        tableRepository.saveAndFlush(table);
 
-        restaurantTable.setReservation(reservation);
-        restaurantTable.markAsReserved();
-        tableRepository.save(restaurantTable);
+        LocalDateTime start = LocalDateTime.now().plusHours(3);
+        LocalDateTime end   = start.plusHours(1);
 
-        // When: löschen
-        reservationService.deleteReservation(reservation.getId());
+        Reservation toSave = new Reservation(start, end);
+        Reservation saved  = reservationService.addReservation(toSave, 20, "tester");
+        Long reservationId = saved.getId();
+
+        // sanity check
+        assertNotNull(reservationRepository.findById(reservationId).orElse(null));
+
+        // --- When ---
+        reservationService.deleteReservation(reservationId);
         reservationRepository.flush();
 
-        // Then: Prüfung
-        Optional<Reservation> deleted = reservationRepository.findById(reservation.getId());
-        assertTrue(deleted.isEmpty());
+        // --- Then ---
+        assertTrue(reservationRepository.findById(reservationId).isEmpty(), "Reservation should be deleted");
 
-        Optional<RestaurantTable> updatedTable = tableRepository.findById(restaurantTable.getId());
-        assertTrue(updatedTable.isPresent());
-        assertNull(updatedTable.get().getReservation());
-        assertFalse(updatedTable.get().isReserved());
+        // user nie ma już rezerwacji
+        User reloadedUser = userRepository.findByUsername("tester").orElseThrow();
+        assertNull(reloadedUser.getReservation(), "User should not reference a reservation anymore");
+
+        // stolik nie zawiera usuniętej rezerwacji
+        RestaurantTable reloadedTable = tableRepository.findTableByTableNumber(20).orElseThrow();
+        assertTrue(
+                reloadedTable.getReservations() == null ||
+                        reloadedTable.getReservations().stream().noneMatch(r -> r.getId().equals(reservationId)),
+                "Table reservations should not contain the deleted reservation"
+        );
     }
 }

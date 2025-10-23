@@ -1,31 +1,52 @@
-import '../styles/loginAndRegister.css';
+import "../styles/loginAndRegister.css";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 function Register() {
+    const [fullName, setFullName] = useState("");
+    const [email, setEmail]       = useState("");
+    const [phone, setPhone]       = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+
     const [showPwd, setShowPwd] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
+
     const navigate = useNavigate();
+    const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
+
+    const validEmail = (v) => /\S+@\S+\.\S+/.test(v);
 
     async function handleSubmit(e) {
         e.preventDefault();
         setErrorMsg("");
+
+        // prosta walidacja frontowa
+        if (!validEmail(email)) {
+            setErrorMsg("Bitte eine gültige E-Mail-Adresse angeben.");
+            return;
+        }
+        if (password.length < 6) {
+            setErrorMsg("Passwort muss mindestens 6 Zeichen haben.");
+            return;
+        }
+        if (username.trim().length < 3) {
+            setErrorMsg("Benutzername muss mindestens 3 Zeichen haben.");
+            return;
+        }
+
         setSubmitting(true);
 
         try {
-            const res = await fetch("http://localhost:8080/auth/register", {
+            const res = await fetch(`${API}/auth/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ username, password }),
+                body: JSON.stringify({ username, password, fullName, email, phone }),
             });
 
-            if (res.ok) {
-                navigate("/myaccount");
-            } else {
+            if (!res.ok) {
                 // Backend może zwrócić JSON lub tekst
                 let msg = "Registrierung fehlgeschlagen.";
                 try {
@@ -35,14 +56,38 @@ function Register() {
                     const text = await res.text();
                     msg = text || msg;
                 }
-                setErrorMsg(msg);
+                throw new Error(msg);
             }
+
+            // Odpowiedź z backendu po rejestracji: { username, fullName, email, phone } (wg naszej implementacji)
+            const data = await res.json();
+
+            // Zapis kontekstu użytkownika — JWT jest już w httpOnly cookie
+            localStorage.setItem(
+                "authUser",
+                JSON.stringify({
+                    username: data.username,
+                    fullName: data.fullName,
+                    email: data.email,
+                    phone: data.phone,
+                    role: "ROLE_USER", // domyślnie przy rejestracji
+                })
+            );
+
+            navigate("/myaccount");
         } catch (err) {
             setErrorMsg(err.message || "Ein Fehler ist aufgetreten.");
         } finally {
             setSubmitting(false);
         }
     }
+
+    const isDisabled =
+        submitting ||
+        !fullName.trim() ||
+        !validEmail(email) ||
+        !username.trim() ||
+        password.length < 6;
 
     return (
         <main className="auth-page" aria-label="Registrierung">
@@ -56,6 +101,43 @@ function Register() {
                 )}
 
                 <form className="auth-form" onSubmit={handleSubmit} noValidate>
+                    <div className="field">
+                        <label htmlFor="fullName">Vollständiger Name</label>
+                        <input
+                            id="fullName"
+                            type="text"
+                            autoComplete="name"
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            minLength={2}
+                            required
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="email">E-Mail</label>
+                        <input
+                            id="email"
+                            type="email"
+                            autoComplete="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                    </div>
+
+                    <div className="field">
+                        <label htmlFor="phone">Telefon (optional)</label>
+                        <input
+                            id="phone"
+                            type="tel"
+                            autoComplete="tel"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                            placeholder="+49 170 1234567"
+                        />
+                    </div>
+
                     <div className="field">
                         <label htmlFor="username">Benutzername</label>
                         <input
@@ -84,7 +166,7 @@ function Register() {
                             <button
                                 type="button"
                                 className="pwd-toggle"
-                                onClick={() => setShowPwd(v => !v)}
+                                onClick={() => setShowPwd((v) => !v)}
                                 aria-label={showPwd ? "Passwort verbergen" : "Passwort anzeigen"}
                             >
                                 {showPwd ? "Verbergen" : "Anzeigen"}
@@ -92,7 +174,7 @@ function Register() {
                         </div>
                     </div>
 
-                    <button className="auth-btn" type="submit" disabled={submitting}>
+                    <button className="auth-btn" type="submit" disabled={isDisabled}>
                         {submitting ? <span className="spinner" aria-hidden="true" /> : null}
                         {submitting ? "Wird registriert…" : "Registrieren"}
                     </button>

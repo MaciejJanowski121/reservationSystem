@@ -3,7 +3,7 @@ package org.example.reservationsystem;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.example.reservationsystem.DTO.UserDTO;
+import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.controller.AuthController;
 import org.example.reservationsystem.model.Role;
@@ -43,10 +43,10 @@ public class AuthControllerTest {
 
     @Test
     void testRegister() {
-        UserDTO userDTO = new UserDTO("maciej", "test123");
+        UserRegisterDTO userDTO = new UserRegisterDTO("maciej", "test123");
         when(authService.register(userDTO)).thenReturn("jwt-token");
 
-        ResponseEntity<UserDTO> result = authController.register(userDTO, response);
+        ResponseEntity<UserRegisterDTO> result = authController.register(userDTO, response);
 
         assertEquals(200, result.getStatusCodeValue());
         assertEquals("maciej", result.getBody().getUsername());
@@ -55,7 +55,7 @@ public class AuthControllerTest {
 
     @Test
     void testLoginSuccess() {
-        UserDTO userDTO = new UserDTO("maciej", "test123");
+        UserRegisterDTO userDTO = new UserRegisterDTO("maciej", "test123");
         User user = new User("maciej", "hashed-pw", Role.ROLE_USER);
 
         when(authService.login(userDTO)).thenReturn("jwt-token");
@@ -72,7 +72,7 @@ public class AuthControllerTest {
 
     @Test
     void testLoginFailure() {
-        UserDTO userDTO = new UserDTO("maciej", "wrongpw");
+        UserRegisterDTO userDTO = new UserRegisterDTO("maciej", "wrongpw");
 
         when(authService.login(userDTO)).thenThrow(new UsernameNotFoundException("User not found"));
 
