@@ -1,7 +1,7 @@
 package org.example.reservationsystem.service;
 
 import jakarta.persistence.EntityNotFoundException;
-import org.springframework.transaction.annotation.Transactional;
+import org.example.reservationsystem.DTO.TableViewDTO;
 import org.example.reservationsystem.exceptions.TableNotFoundException;
 import org.example.reservationsystem.exceptions.UserNotFoundException;
 import org.example.reservationsystem.model.Reservation;
@@ -10,8 +10,8 @@ import org.example.reservationsystem.model.User;
 import org.example.reservationsystem.repository.ReservationRepository;
 import org.example.reservationsystem.repository.TableRepository;
 import org.example.reservationsystem.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -21,59 +21,51 @@ import java.util.List;
 @Transactional
 public class ReservationService {
 
-    // Zeitregeln: min. 30 Min, max. 5 Std, Standarddauer 2 Std
+    // Reguły czasu: min. 30 min, max. 5 h, domyślnie 2 h
     private static final Duration MIN_DURATION     = Duration.ofMinutes(30);
     private static final Duration MAX_DURATION     = Duration.ofHours(5);
     private static final Duration DEFAULT_DURATION = Duration.ofHours(2);
 
-    private final ReservationRepository reservationRepository;
-    private final TableRepository       tableRepository;
-    private final UserRepository        userRepository;
+    // (dla endpointu /available)
+    private static final int MIN_MINUTES = 30;
+    private static final int MAX_MINUTES = 300;
 
-    @Autowired
+    private final ReservationRepository reservationRepository;
+    private final TableRepository tableRepository;
+    private final UserRepository userRepository;
+
     public ReservationService(ReservationRepository reservationRepository,
                               TableRepository tableRepository,
                               UserRepository userRepository) {
         this.reservationRepository = reservationRepository;
-        this.tableRepository       = tableRepository;
-        this.userRepository        = userRepository;
+        this.tableRepository = tableRepository;
+        this.userRepository = userRepository;
     }
 
     /**
-     * Fügt eine neue Reservierung für Benutzer und Tisch hinzu.
-     *
-     * Regeln:
-     * - Ein Benutzer darf nur 1 aktive Reservierung haben.
-     * - Wenn endTime fehlt, wird automatisch startTime + 2 Std gesetzt.
-     * - Gültige Dauer: 30–300 Minuten, startTime in der Zukunft, endTime > startTime.
-     * - Zeitüberschneidungen werden in der DB geprüft (Berühren der Grenzen ist erlaubt).
-     *
-     * @param reservation  Reservierungsdaten (startTime/endTime)
-     * @param tableNumber  Tischnummer
-     * @param username     Benutzername (aus JWT)
-     * @return gespeicherte Reservierung
+     * Dodaje nową rezerwację dla użytkownika i stolika.
+     * Zostawiamy regułę: jeden użytkownik może mieć tylko 1 aktywną rezerwację.
      */
     public Reservation addReservation(Reservation reservation, int tableNumber, String username) {
-        // Benutzer laden + prüfen, dass keine aktive Reservierung existiert
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        // Reguła 1:1 (na razie zostawiamy)
         if (user.getReservation() != null) {
             throw new IllegalStateException("User already has a reservation.");
         }
 
-        // Tisch laden
         RestaurantTable table = tableRepository.findTableByTableNumber(tableNumber)
                 .orElseThrow(() -> new TableNotFoundException("Table with number " + tableNumber + " does not exist."));
 
-        // endTime automatisch, falls nicht gesetzt
+        // Jeśli endTime brak — ustaw domyślnie start + 2h
         if (reservation.getStartTime() != null && reservation.getEndTime() == null) {
             reservation.setEndTime(reservation.getStartTime().plus(DEFAULT_DURATION));
         }
 
-        // Zeiten validieren
         validateReservationInput(reservation);
 
-        // Overlap-Check in der DB: newStart < existingEnd && newEnd > existingStart
+        // Kolizja czasu: newStart < existingEnd && newEnd > existingStart
         boolean overlaps = reservationRepository
                 .existsByTable_IdAndStartTimeLessThanAndEndTimeGreaterThan(
                         table.getId(),
@@ -84,23 +76,21 @@ public class ReservationService {
             throw new IllegalStateException("Table " + tableNumber + " is already reserved in this time slot.");
         }
 
-        // Beziehungen setzen
+        // Powiązania
         reservation.setUser(user);
         reservation.setTable(table);
         user.setReservation(reservation);
 
-        // (optional) Konsistenz der Tischliste im Speicher
         if (table.getReservations() != null) {
             table.getReservations().add(reservation);
         }
 
-        // Speichern
         Reservation saved = reservationRepository.save(reservation);
-        userRepository.save(user);
+        userRepository.save(user); // utrzymanie relacji 1:1
         return saved;
     }
 
-    /** Liefert die Reservierung des eingeloggten Benutzers. */
+    /** Rezerwacja zalogowanego użytkownika (1:1). */
     @Transactional(readOnly = true)
     public Reservation getUserReservation(String username) {
         User user = userRepository.findByUsername(username)
@@ -108,19 +98,19 @@ public class ReservationService {
         return user.getReservation();
     }
 
-    /** Löscht eine Reservierung und räumt Relationen zu Tisch/Benutzer auf. */
+    /** Usuwa rezerwację i czyści relacje. */
     public void deleteReservation(Long id) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Reservation not found"));
 
-        // Von Tisch trennen
+        // odczep od stolika
         RestaurantTable table = reservation.getTable();
         if (table != null && table.getReservations() != null) {
             table.getReservations().remove(reservation);
         }
         reservation.setTable(null);
 
-        // Von Benutzer trennen
+        // odczep od użytkownika (1:1)
         User user = reservation.getUser();
         if (user != null) {
             user.setReservation(null);
@@ -128,42 +118,49 @@ public class ReservationService {
             userRepository.save(user);
         }
 
-        // Entfernen
         reservationRepository.delete(reservation);
     }
 
-    /** Alle Reservierungen (z. B. für Admin). */
+    /** Wszystkie rezerwacje (np. dla admina). */
+    @Transactional(readOnly = true)
     public List<Reservation> getAllReservations() {
-
         return reservationRepository.findAll();
     }
 
-    /** Hilfsfunktion: Benutzer per Username laden. */
-    public User getUserByUsername(String username) {
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new UserNotFoundException("Benutzer nicht gefunden"));
+    /** Lista wolnych stolików (używane przez endpoint /available). */
+    @Transactional(readOnly = true)
+    public List<TableViewDTO> findAvailableTables(LocalDateTime start, Integer minutes) {
+        int clamped = clampMinutes(minutes);
+        LocalDateTime end = start.plusMinutes(clamped);
+
+        return tableRepository.findAll().stream()
+                .filter(table -> !reservationRepository
+                        .existsByTable_IdAndStartTimeLessThanAndEndTimeGreaterThan(
+                                table.getId(), end, start))
+                .map(t -> new TableViewDTO(t.getId(), t.getTableNumber(), t.getNumberOfSeats()))
+                .toList();
     }
 
-    /** Validiert Pflichtfelder und Zeitregeln (30–300 Min, Zukunft, end > start). */
+    // ---------------- helpers ----------------
+
+    private static int clampMinutes(Integer minutes) {
+        if (minutes == null) return MIN_MINUTES;
+        if (minutes < MIN_MINUTES) return MIN_MINUTES;
+        if (minutes > MAX_MINUTES) return MAX_MINUTES;
+        return minutes;
+    }
+
+    /** Walidacja start/end + zakresu trwania. */
     private void validateReservationInput(Reservation r) {
-        if (r == null) {
-            throw new IllegalArgumentException("Reservation cannot be null.");
-        }
-        if (r.getStartTime() == null) {
-            throw new IllegalArgumentException("Reservation must have start time.");
-        }
-        if (r.getEndTime() == null) {
-            throw new IllegalArgumentException("Reservation must have end time.");
-        }
+        if (r == null) throw new IllegalArgumentException("Reservation cannot be null.");
+        if (r.getStartTime() == null) throw new IllegalArgumentException("Reservation must have start time.");
+        if (r.getEndTime() == null) throw new IllegalArgumentException("Reservation must have end time.");
         if (!r.getEndTime().isAfter(r.getStartTime())) {
             throw new IllegalArgumentException("End time must be after start time.");
         }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (r.getStartTime().isBefore(now)) {
+        if (r.getStartTime().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("Reservation start time cannot be in the past.");
         }
-
         long minutes = Duration.between(r.getStartTime(), r.getEndTime()).toMinutes();
         if (minutes < MIN_DURATION.toMinutes() || minutes > MAX_DURATION.toMinutes()) {
             throw new IllegalArgumentException("Reservation must be between 30 minutes and 5 hours.");
