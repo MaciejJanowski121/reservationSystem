@@ -2,48 +2,73 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 function ReservationForm({ setReservation }) {
-    const [startTime, setStartTime] = useState("");  // "YYYY-MM-DDTHH:mm"
-    const [minutes, setMinutes] = useState(120);     // 30..300
+    const [startTime, setStartTime] = useState(""); // "YYYY-MM-DDTHH:mm"
+    const [minutes, setMinutes] = useState(120); // 30..300
     const [tableNumber, setTableNumber] = useState("");
     const [availableTables, setAvailableTables] = useState([]);
+    const [formError, setFormError] = useState("");
 
     const navigate = useNavigate();
-    const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
+    const API = useMemo(
+        () => process.env.REACT_APP_API_URL || "http://localhost:8080",
+        []
+    );
 
-    // Helper: Date -> "YYYY-MM-DDTHH:mm:ss"
-    const toIsoWithSeconds = (date) => {
-        const pad = (n) => (n < 10 ? "0" + n : n);
-        return (
-            date.getFullYear() +
-            "-" + pad(date.getMonth() + 1) +
-            "-" + pad(date.getDate()) +
-            "T" + pad(date.getHours()) +
-            ":" + pad(date.getMinutes()) +
-            ":" + pad(date.getSeconds())
-        );
-    };
+    // --- Geschäftsregeln ---
+    const MIN_MIN = 30;
+    const MAX_MIN = 300;
+    const CLOSING_HOUR = 22; // Reservierungen maximal bis 22:00 Uhr
+
+    // Zeit-Helferfunktionen
+    const pad = (n) => (n < 10 ? "0" + n : n);
+    const toIsoWithSeconds = (date) =>
+        `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+            date.getDate()
+        )}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(
+            date.getSeconds()
+        )}`;
 
     const parseLocalDateTime = (value) => (value ? new Date(value + ":00") : null);
 
-    // Fetch available tables for (start, minutes)
+    // Ermittelt die maximal erlaubte Dauer, sodass Ende <= 22:00 Uhr
+    const maxMinutesForStart = (start) => {
+        if (!start) return MAX_MIN;
+        const latestEnd = new Date(start);
+        latestEnd.setHours(CLOSING_HOUR, 0, 0, 0); // 22:00 Uhr desselben Tages
+        const diffMs = latestEnd.getTime() - start.getTime();
+        const diffMin = Math.floor(diffMs / 60000);
+        if (diffMin <= 0) return 0; // zu spät
+        return Math.min(MAX_MIN, diffMin);
+    };
+
+    // Verfügbare Tische abrufen
     useEffect(() => {
         const fetchAvailable = async () => {
+            setFormError("");
             if (!startTime || !minutes) {
                 setAvailableTables([]);
                 return;
             }
+
             const start = parseLocalDateTime(startTime);
             if (!start) return;
+
+            const maxAllowed = maxMinutesForStart(start);
+            if (maxAllowed < MIN_MIN) {
+                setAvailableTables([]);
+                return;
+            }
 
             const startISO = toIsoWithSeconds(start);
 
             try {
                 const res = await fetch(
-                    `${API}/api/reservations/available?start=${encodeURIComponent(startISO)}&minutes=${minutes}`,
+                    `${API}/api/reservations/available?start=${encodeURIComponent(
+                        startISO
+                    )}&minutes=${minutes}`,
                     { credentials: "include" }
                 );
-                if (!res.ok) throw new Error("Error loading available tables");
-
+                if (!res.ok) throw new Error("Fehler beim Laden der verfügbaren Tische.");
                 const data = await res.json();
                 setAvailableTables(Array.isArray(data) ? data : []);
             } catch (e) {
@@ -55,7 +80,7 @@ function ReservationForm({ setReservation }) {
         fetchAvailable();
     }, [startTime, minutes, API]);
 
-    // Clear the selected table if it disappears from availability
+    // Auswahl zurücksetzen, wenn Tisch nicht mehr verfügbar
     useEffect(() => {
         if (!tableNumber) return;
         const stillAvailable = availableTables.some(
@@ -66,17 +91,32 @@ function ReservationForm({ setReservation }) {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setFormError("");
 
         const start = parseLocalDateTime(startTime);
-        if (!start) return alert("Wybierz godzinę rozpoczęcia.");
-        if (start < new Date()) return alert("Nie możesz zarezerwować czasu w przeszłości.");
-        if (!minutes || minutes < 30 || minutes > 300)
-            return alert("Czas trwania musi być między 30 a 300 minut.");
-        if (!tableNumber) return alert("Wybierz stolik.");
+        if (!start) return setFormError("Bitte Startzeit auswählen.");
+        if (start < new Date())
+            return setFormError("Reservierungen in der Vergangenheit sind nicht möglich.");
+
+        if (!minutes || minutes < MIN_MIN || minutes > MAX_MIN)
+            return setFormError("Die Dauer muss zwischen 30 und 300 Minuten liegen.");
+
+        const maxAllowed = maxMinutesForStart(start);
+        if (minutes > maxAllowed) {
+            if (maxAllowed < MIN_MIN) {
+                return setFormError(
+                    "Die letzte Reservierung muss spätestens um 22:00 Uhr enden. Bitte frühere Zeit wählen."
+                );
+            }
+            return setFormError(
+                `Für diese Startzeit ist maximal ${maxAllowed} Minuten erlaubt (bis 22:00 Uhr).`
+            );
+        }
+
+        if (!tableNumber) return setFormError("Bitte Tisch auswählen.");
 
         const end = new Date(start.getTime() + minutes * 60 * 1000);
 
-        // NOWY payload: bez name/email/phone i bez zagnieżdżonego 'reservation'
         const payload = {
             tableNumber: Number(tableNumber),
             startTime: toIsoWithSeconds(start),
@@ -91,71 +131,132 @@ function ReservationForm({ setReservation }) {
                 body: JSON.stringify(payload),
             });
 
+            const txt = await resp.text();
             if (!resp.ok) {
-                const txt = await resp.text();
-                throw new Error(txt || "Unknown error");
+                throw new Error(
+                    txt || "Reservierung fehlgeschlagen – bitte versuchen Sie es erneut."
+                );
             }
 
-            const data = await resp.json();
-            setReservation([data]);  // dostosuj, jeśli oczekujesz innej struktury
+            const data = txt ? JSON.parse(txt) : null;
+            setReservation([data]);
             navigate("/reservations/my");
         } catch (err) {
             console.error(err);
-            alert("Rezerwacja nie powiodła się: " + err.message);
+            setFormError(`Reservierung fehlgeschlagen: ${err.message}`);
         }
     };
 
-    // Min dla datetime-local (teraz)
+    // Mindestzeit für datetime-local
     const nowLocalForMin = useMemo(() => {
         const d = new Date();
         d.setSeconds(0, 0);
-        const pad = (n) => (n < 10 ? "0" + n : n);
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+            d.getDate()
+        )}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }, []);
+
+    // Dropdown für Dauer (nur gültige Optionen)
+    const renderDurationOptions = () => {
+        const start = parseLocalDateTime(startTime);
+        const maxAllowed = maxMinutesForStart(start);
+        const items = [];
+        for (let m = MIN_MIN; m <= MAX_MIN; m += 30) {
+            const disabled = start && m > maxAllowed;
+            const label =
+                m < 60
+                    ? `${m} Min`
+                    : `${Math.floor(m / 60)} Std${m % 60 ? ` ${m % 60} Min` : ""}`;
+            items.push(
+                <option key={m} value={m} disabled={disabled}>
+                    {label}
+                    {disabled ? " (bis 22:00 Uhr)" : ""}
+                </option>
+            );
+        }
+        return items;
+    };
+
+    const start = parseLocalDateTime(startTime);
+    const maxAllowedForHint = maxMinutesForStart(start);
+    const endPreview =
+        start && minutes ? new Date(start.getTime() + minutes * 60000) : null;
 
     return (
         <form onSubmit={handleSubmit} className="reservation-form">
-            {/* Start time */}
+            {/* Startzeit */}
+            <label style={{ display: "block", marginBottom: 4 }}>
+                Beginn der Reservierung
+            </label>
             <input
                 type="datetime-local"
                 value={startTime}
                 min={nowLocalForMin}
-                onChange={(e) => setStartTime(e.target.value)}
+                onChange={(e) => {
+                    setStartTime(e.target.value);
+                    setFormError("");
+                }}
                 required
             />
+            <small style={{ display: "block", marginTop: 4, color: "#555" }}>
+                Reservierungen sind nur bis <strong>22:00 Uhr</strong> am selben Tag
+                möglich.
+            </small>
 
-            {/* Duration (30–300, step 30) */}
+            {/* Dauer */}
+            <label style={{ display: "block", margin: "12px 0 4px" }}>Dauer</label>
             <select
                 value={minutes}
-                onChange={(e) => setMinutes(Number(e.target.value))}
+                onChange={(e) => {
+                    setMinutes(Number(e.target.value));
+                    setFormError("");
+                }}
                 required
             >
-                {[...Array(10)].map((_, i) => {
-                    const m = (i + 1) * 30;
-                    const label = m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
-                    return (
-                        <option key={m} value={m}>
-                            {label}
-                        </option>
-                    );
-                })}
+                {renderDurationOptions()}
             </select>
 
-            {/* Only available tables */}
+
+            {/* Tischauswahl */}
+            <label style={{ display: "block", margin: "12px 0 4px" }}>Tisch</label>
             <select
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 required
+                disabled={maxAllowedForHint < MIN_MIN}
             >
-                <option value="">Wybierz stolik…</option>
+                <option value="">Tisch auswählen…</option>
                 {availableTables.map((t) => (
                     <option key={t.id} value={t.tableNumber}>
-                        Stolik {t.tableNumber} ({t.numberOfSeats} os.)
+                        Tisch {t.tableNumber} ({t.numberOfSeats} Pers.)
                     </option>
                 ))}
             </select>
 
-            <button type="submit">Zarezerwuj</button>
+            {/* Vorschau Endezeit */}
+            {endPreview && (
+                <small style={{ display: "block", marginTop: 6, color: "#555" }}>
+                    Ende:{" "}
+                    {endPreview.toLocaleTimeString("de-DE", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                    })}{" "}
+                    (spätestens 22:00 Uhr)
+                </small>
+            )}
+
+            {/* Fehlermeldungen */}
+            {formError && (
+                <p style={{ color: "#c62828", marginTop: 10 }}>{formError}</p>
+            )}
+
+            <button
+                type="submit"
+                style={{ marginTop: 12 }}
+                disabled={maxAllowedForHint < MIN_MIN}
+            >
+                Reservieren
+            </button>
         </form>
     );
 }

@@ -4,37 +4,42 @@ import { useMemo, useState } from "react";
 
 function Register() {
     const [fullName, setFullName] = useState("");
-    const [email, setEmail]       = useState("");
-    const [phone, setPhone]       = useState("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
 
     const [showPwd, setShowPwd] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
 
     const navigate = useNavigate();
-    const API = useMemo(() => process.env.REACT_APP_API_URL || "http://localhost:8080", []);
+    const API = useMemo(
+        () => process.env.REACT_APP_API_URL || "http://localhost:8080",
+        []
+    );
 
     const validEmail = (v) => /\S+@\S+\.\S+/.test(v);
+    const validPhone = (v) =>
+        !v || /^(\+?\d{1,3}[\s-]?)?\d{6,15}$/.test(v.trim());
 
     async function handleSubmit(e) {
         e.preventDefault();
         setErrorMsg("");
+        setSuccessMsg("");
 
-        // prosta walidacja frontowa
-        if (!validEmail(email)) {
-            setErrorMsg("Bitte eine gültige E-Mail-Adresse angeben.");
-            return;
-        }
-        if (password.length < 6) {
-            setErrorMsg("Passwort muss mindestens 6 Zeichen haben.");
-            return;
-        }
-        if (username.trim().length < 3) {
-            setErrorMsg("Benutzername muss mindestens 3 Zeichen haben.");
-            return;
-        }
+        // --- Walidacja frontendowa ---
+        if (fullName.trim().length < 2)
+            return setErrorMsg("Bitte den vollständigen Namen angeben.");
+        if (!validEmail(email))
+            return setErrorMsg("Bitte eine gültige E-Mail-Adresse angeben.");
+        if (!validPhone(phone))
+            return setErrorMsg("Bitte eine gültige Telefonnummer angeben (oder leer lassen).");
+        if (username.trim().length < 3)
+            return setErrorMsg("Benutzername muss mindestens 3 Zeichen haben.");
+        if (password.length < 6)
+            return setErrorMsg("Passwort muss mindestens 6 Zeichen haben.");
 
         setSubmitting(true);
 
@@ -47,7 +52,6 @@ function Register() {
             });
 
             if (!res.ok) {
-                // Backend może zwrócić JSON lub tekst
                 let msg = "Registrierung fehlgeschlagen.";
                 try {
                     const data = await res.json();
@@ -59,10 +63,7 @@ function Register() {
                 throw new Error(msg);
             }
 
-            // Odpowiedź z backendu po rejestracji: { username, fullName, email, phone } (wg naszej implementacji)
             const data = await res.json();
-
-            // Zapis kontekstu użytkownika — JWT jest już w httpOnly cookie
             localStorage.setItem(
                 "authUser",
                 JSON.stringify({
@@ -70,11 +71,12 @@ function Register() {
                     fullName: data.fullName,
                     email: data.email,
                     phone: data.phone,
-                    role: "ROLE_USER", // domyślnie przy rejestracji
+                    role: "ROLE_USER",
                 })
             );
 
-            navigate("/myaccount");
+            setSuccessMsg("Registrierung erfolgreich! Weiterleitung...");
+            setTimeout(() => navigate("/myaccount"), 1500);
         } catch (err) {
             setErrorMsg(err.message || "Ein Fehler ist aufgetreten.");
         } finally {
@@ -92,15 +94,23 @@ function Register() {
     return (
         <main className="auth-page" aria-label="Registrierung">
             <section className="auth-card" aria-labelledby="register-title">
-                <h1 id="register-title" className="auth-title">Registrieren</h1>
+                <h1 id="register-title" className="auth-title">
+                    Registrieren
+                </h1>
 
                 {errorMsg && (
                     <div className="auth-alert" role="alert">
                         {errorMsg}
                     </div>
                 )}
+                {successMsg && (
+                    <div className="auth-success" role="status">
+                        {successMsg}
+                    </div>
+                )}
 
                 <form className="auth-form" onSubmit={handleSubmit} noValidate>
+                    {/* FULL NAME */}
                     <div className="field">
                         <label htmlFor="fullName">Vollständiger Name</label>
                         <input
@@ -112,8 +122,10 @@ function Register() {
                             minLength={2}
                             required
                         />
+                        <small className="hint">Mindestens 2 Zeichen</small>
                     </div>
 
+                    {/* EMAIL */}
                     <div className="field">
                         <label htmlFor="email">E-Mail</label>
                         <input
@@ -124,8 +136,10 @@ function Register() {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                         />
+                        <small className="hint">Bitte gültige Adresse z. B. name@mail.de</small>
                     </div>
 
+                    {/* PHONE */}
                     <div className="field">
                         <label htmlFor="phone">Telefon (optional)</label>
                         <input
@@ -136,8 +150,10 @@ function Register() {
                             onChange={(e) => setPhone(e.target.value)}
                             placeholder="+49 170 1234567"
                         />
+                        <small className="hint">Nur Zahlen, +, - und Leerzeichen erlaubt</small>
                     </div>
 
+                    {/* USERNAME */}
                     <div className="field">
                         <label htmlFor="username">Benutzername</label>
                         <input
@@ -149,8 +165,10 @@ function Register() {
                             minLength={3}
                             required
                         />
+                        <small className="hint">Mindestens 3 Zeichen</small>
                     </div>
 
+                    {/* PASSWORD */}
                     <div className="field">
                         <label htmlFor="password">Passwort</label>
                         <div className="pwd-wrap">
@@ -172,6 +190,7 @@ function Register() {
                                 {showPwd ? "Verbergen" : "Anzeigen"}
                             </button>
                         </div>
+                        <small className="hint">Mindestens 6 Zeichen</small>
                     </div>
 
                     <button className="auth-btn" type="submit" disabled={isDisabled}>
@@ -182,7 +201,9 @@ function Register() {
 
                 <p className="auth-meta">
                     Bereits ein Konto?{" "}
-                    <Link to="/login" className="auth-link">Jetzt einloggen</Link>
+                    <Link to="/login" className="auth-link">
+                        Jetzt einloggen
+                    </Link>
                 </p>
             </section>
         </main>

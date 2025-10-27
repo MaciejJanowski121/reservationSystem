@@ -150,20 +150,35 @@ public class ReservationService {
         return minutes;
     }
 
-    /** Walidacja start/end + zakresu trwania. */
+    /** Validiert Pflichtfelder und Zeitregeln (30–300 Min, Zukunft, end > start, max bis 22:00). */
     private void validateReservationInput(Reservation r) {
-        if (r == null) throw new IllegalArgumentException("Reservation cannot be null.");
-        if (r.getStartTime() == null) throw new IllegalArgumentException("Reservation must have start time.");
-        if (r.getEndTime() == null) throw new IllegalArgumentException("Reservation must have end time.");
+        if (r == null) {
+            throw new IllegalArgumentException("Reservation cannot be null.");
+        }
+        if (r.getStartTime() == null) {
+            throw new IllegalArgumentException("Reservation must have start time.");
+        }
+        if (r.getEndTime() == null) {
+            throw new IllegalArgumentException("Reservation must have end time.");
+        }
         if (!r.getEndTime().isAfter(r.getStartTime())) {
             throw new IllegalArgumentException("End time must be after start time.");
         }
-        if (r.getStartTime().isBefore(LocalDateTime.now())) {
+
+        LocalDateTime now = LocalDateTime.now();
+        if (r.getStartTime().isBefore(now)) {
             throw new IllegalArgumentException("Reservation start time cannot be in the past.");
         }
+
         long minutes = Duration.between(r.getStartTime(), r.getEndTime()).toMinutes();
         if (minutes < MIN_DURATION.toMinutes() || minutes > MAX_DURATION.toMinutes()) {
             throw new IllegalArgumentException("Reservation must be between 30 minutes and 5 hours.");
+        }
+
+        // --- NEUE REGEL: Rezerwacja maks. do 22:00 ---
+        LocalDateTime latestAllowed = r.getStartTime().toLocalDate().atTime(22, 0);
+        if (r.getEndTime().isAfter(latestAllowed)) {
+            throw new IllegalArgumentException("Reservations are only allowed until 22:00.");
         }
     }
 }
