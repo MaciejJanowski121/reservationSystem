@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:16
+    container_name: reservation_db
+    environment:
+      POSTGRES_DB: reservation
+      POSTGRES_USER: maciej
+      POSTGRES_PASSWORD: maciej
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maciej -d reservation"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      - "5433:5432"   # opcjonalnie na hosta
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile   # ten z katalogu głównego
+    container_name: reservation_backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: reservation_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  db_data:
