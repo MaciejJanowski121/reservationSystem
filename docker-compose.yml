@@ -14,12 +14,12 @@ services:
       timeout: 3s
       retries: 5
     ports:
-      - "5433:5432"   # opcjonalnie na hosta
+      - "5433:5432"
 
   backend:
     build:
       context: .
-      dockerfile: Dockerfile   # ten z katalogu głównego
+      dockerfile: Dockerfile
     container_name: reservation_backend
     depends_on:
       db:

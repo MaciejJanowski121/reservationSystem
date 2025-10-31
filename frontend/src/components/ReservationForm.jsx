@@ -185,10 +185,11 @@ function ReservationForm({ setReservation }) {
     return (
         <form onSubmit={handleSubmit} className="reservation-form">
             {/* Startzeit */}
-            <label style={{ display: "block", marginBottom: 4 }}>
+            <label htmlFor="startTime" style={{ display: "block", marginBottom: 4 }}>
                 Beginn der Reservierung
             </label>
             <input
+                id="startTime"
                 type="datetime-local"
                 value={startTime}
                 min={nowLocalForMin}
@@ -204,8 +205,9 @@ function ReservationForm({ setReservation }) {
             </small>
 
             {/* Dauer */}
-            <label style={{ display: "block", margin: "12px 0 4px" }}>Dauer</label>
+            <label htmlFor="duration" style={{ display: "block", margin: "12px 0 4px" }}>Dauer</label>
             <select
+                id="duration"
                 value={minutes}
                 onChange={(e) => {
                     setMinutes(Number(e.target.value));
@@ -218,8 +220,9 @@ function ReservationForm({ setReservation }) {
 
 
             {/* Tischauswahl */}
-            <label style={{ display: "block", margin: "12px 0 4px" }}>Tisch</label>
+            <label htmlFor="tableNumber" style={{ display: "block", margin: "12px 0 4px" }}>Tisch</label>
             <select
+                id="tableNumber"
                 value={tableNumber}
                 onChange={(e) => setTableNumber(e.target.value)}
                 required

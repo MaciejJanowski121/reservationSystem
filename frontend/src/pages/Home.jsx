@@ -10,7 +10,7 @@ function Home() {
         >
 
 
-            {/* Lewa góra – tytuł + highlights */}
+
             <section className="split-left">
                 <p className="home-kicker">Seit 1998 – Familiengeführt</p>
 
@@ -30,7 +30,7 @@ function Home() {
                 </ul>
             </section>
 
-            {/* Prawa dół – karta z informacjami */}
+
             <aside className="split-right card" aria-label="Informationen">
                 <div className="info-row">
                     <div>

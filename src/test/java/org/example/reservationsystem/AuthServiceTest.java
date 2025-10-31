@@ -1,5 +1,6 @@
 package org.example.reservationsystem;
 
+import org.example.reservationsystem.DTO.UserLoginDTO;
 import org.example.reservationsystem.DTO.UserRegisterDTO;
 import org.example.reservationsystem.JWTServices.JwtAuthenticationFilter;
 import org.example.reservationsystem.JWTServices.JwtService;
@@ -29,6 +30,7 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    // Wird im AuthService-Konstruktor injiziert, hier aber nicht aktiv verwendet
     @Mock
     private JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -38,27 +40,51 @@ class AuthServiceTest {
     @InjectMocks
     private AuthService authService;
 
-    private UserRegisterDTO userDTO;
+    private UserRegisterDTO registerDTO;
+    private UserLoginDTO loginDTO;
     private User user;
 
     @BeforeEach
     void setUp() {
-        userDTO = new UserRegisterDTO("testuser", "password123");
-        user = new User("testuser", "encodedPassword", Role.ROLE_USER);
+        // --- Register-DTO über leeren Konstruktor + Setter ---
+        registerDTO = new UserRegisterDTO();
+        registerDTO.setUsername("testuser");
+        registerDTO.setPassword("password123");
+        registerDTO.setFullName("Test User");
+        registerDTO.setEmail("testuser@example.com");
+        registerDTO.setPhone("+49 170 0000000");
+
+        // --- Login-DTO über leeren Konstruktor + Setter ---
+        loginDTO = new UserLoginDTO();
+        loginDTO.setUsername("testuser");
+        loginDTO.setPassword("password123");
+
+        // --- User-Entity entsprechend dem aktuellen Konstruktor (inkl. Profildaten) ---
+        user = new User(
+                "testuser",
+                "encodedPassword",
+                Role.ROLE_USER,
+                "Test User",
+                "testuser@example.com",
+                "+49 170 0000000"
+        );
     }
 
     @Test
     void testRegister_shouldReturnToken() {
         // Arrange
-        when(passwordEncoder.encode(userDTO.getPassword())).thenReturn("encodedPassword");
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        // Speichern des Users simulieren
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(jwtService.generateToken(any(User.class))).thenReturn("mockToken");
 
         // Act
-        String token = authService.register(userDTO);
+        String token = authService.register(registerDTO);
 
         // Assert
         assertEquals("mockToken", token);
         verify(userRepository).save(any(User.class));
+        verify(jwtService).generateToken(any(User.class));
     }
 
     @Test
@@ -69,7 +95,7 @@ class AuthServiceTest {
         when(jwtService.generateToken(user)).thenReturn("mockToken");
 
         // Act
-        String token = authService.login(userDTO);
+        String token = authService.login(loginDTO);
 
         // Assert
         assertEquals("mockToken", token);
@@ -78,16 +104,22 @@ class AuthServiceTest {
 
     @Test
     void testLogin_shouldThrowException_ifUserNotFound() {
+        // Arrange
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.empty());
 
-        assertThrows(UsernameNotFoundException.class, () -> authService.login(userDTO));
+        // Assert
+        assertThrows(UsernameNotFoundException.class, () -> authService.login(loginDTO));
+        verify(jwtService, never()).generateToken(any());
     }
 
     @Test
     void testLogin_shouldThrowException_ifPasswordInvalid() {
+        // Arrange
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(false);
 
-        assertThrows(BadCredentialsException.class, () -> authService.login(userDTO));
+        // Assert
+        assertThrows(BadCredentialsException.class, () -> authService.login(loginDTO));
+        verify(jwtService, never()).generateToken(any());
     }
 }

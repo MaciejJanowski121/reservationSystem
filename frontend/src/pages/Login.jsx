@@ -30,10 +30,10 @@ function Login() {
                 throw new Error(text || "Login fehlgeschlagen.");
             }
 
-            // Odpowiedź z backendu: { username, role, fullName, email, phone }
+
             const data = await res.json();
 
-            // Zapisz kontekst użytkownika (prosto: localStorage; możesz to zamienić na Context/Redux)
+
             localStorage.setItem(
                 "authUser",
                 JSON.stringify({

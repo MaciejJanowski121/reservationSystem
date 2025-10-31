@@ -22,7 +22,6 @@ public class RestaurantTable {
     @Column(name = "number_of_seats", nullable = false)
     private int numberOfSeats;
 
-    // Zamiast pojedynczej rezerwacji: lista rezerwacji
     @OneToMany(mappedBy = "table", cascade = CascadeType.ALL, orphanRemoval = true)
 
     private List<Reservation> reservations = new ArrayList<>();

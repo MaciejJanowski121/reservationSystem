@@ -42,10 +42,7 @@ public class ReservationService {
         this.userRepository = userRepository;
     }
 
-    /**
-     * Dodaje nową rezerwację dla użytkownika i stolika.
-     * Zostawiamy regułę: jeden użytkownik może mieć tylko 1 aktywną rezerwację.
-     */
+
     public Reservation addReservation(Reservation reservation, int tableNumber, String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
@@ -76,7 +73,7 @@ public class ReservationService {
             throw new IllegalStateException("Table " + tableNumber + " is already reserved in this time slot.");
         }
 
-        // Powiązania
+
         reservation.setUser(user);
         reservation.setTable(table);
         user.setReservation(reservation);
@@ -90,7 +87,7 @@ public class ReservationService {
         return saved;
     }
 
-    /** Rezerwacja zalogowanego użytkownika (1:1). */
+
     @Transactional(readOnly = true)
     public Reservation getUserReservation(String username) {
         User user = userRepository.findByUsername(username)
@@ -98,12 +95,12 @@ public class ReservationService {
         return user.getReservation();
     }
 
-    /** Usuwa rezerwację i czyści relacje. */
+
     public void deleteReservation(Long id) {
         Reservation reservation = reservationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Reservation not found"));
 
-        // odczep od stolika
+
         RestaurantTable table = reservation.getTable();
         if (table != null && table.getReservations() != null) {
             table.getReservations().remove(reservation);

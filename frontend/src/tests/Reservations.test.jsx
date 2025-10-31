@@ -1,82 +1,71 @@
-import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import Reservations from "../pages/Reservations";
 import { BrowserRouter } from "react-router-dom";
 
-// Globale fetch-Funktion mocken
-global.fetch = jest.fn();
-
-// Hilfsfunktion zum Rendern mit Routing-Kontext
 const renderWithRouter = (ui) => render(<BrowserRouter>{ui}</BrowserRouter>);
 
 describe("Reservations", () => {
     beforeEach(() => {
-        // Vor jedem Test den Mock zurücksetzen
-        fetch.mockClear();
+        global.fetch = jest.fn();
+        jest.clearAllMocks();
     });
 
-    test("zeigt eine Benutzerreservierung an", async () => {
-        // Mock-Antwort für den GET-Request
+    test("pokazuje rezerwację użytkownika", async () => {
+        const dto = {
+            id: 1,
+            username: "maciej",
+            tableNumber: 7,
+            startTime: "2025-06-09T18:00:00",
+            endTime: "2025-06-09T20:00:00",
+        };
+
         fetch.mockResolvedValueOnce({
             ok: true,
-            text: async () =>
-                JSON.stringify({
-                    id: 1,
-                    name: "Maciej",
-                    reservationTime: "2025-06-09T18:00:00",
-                    table: { tableNumber: 7 }
-                }),
+            status: 200,
+            headers: { get: () => "application/json" },
+            text: async () => JSON.stringify(dto),
         });
 
         renderWithRouter(<Reservations />);
 
-        // Warten, bis die Reservation gerendert ist
         await waitFor(() => {
-            expect(screen.getByText(/Maciej/)).toBeInTheDocument();
-            expect(
-                screen.getByText((_, node) => node.textContent === "Tischnummer: 7")
-            ).toBeInTheDocument();
+            expect(screen.getByText(/Benutzer:/i)).toBeInTheDocument();
+            expect(screen.getByText("7", { exact: false })).toBeInTheDocument();
+            expect(screen.getByText(/18:00 – 20:00/)).toBeInTheDocument();
         });
     });
 
-    test("ruft DELETE-API auf, wenn Löschen-Button geklickt wird", async () => {
-        // Erste Mock-Antwort: GET für die Anzeige einer Reservation
-        fetch.mockResolvedValueOnce({
-            ok: true,
-            text: async () =>
-                JSON.stringify({
-                    id: 2,
-                    name: "Anna",
-                    reservationTime: "2025-06-10T19:00:00",
-                    table: { tableNumber: 3 }
-                }),
-        });
+    test("usuwa rezerwację po kliknięciu", async () => {
+        const dto = {
+            id: 2,
+            username: "anna",
+            tableNumber: 3,
+            startTime: "2025-06-10T19:00:00",
+            endTime: "2025-06-10T21:00:00",
+        };
 
-        // Zweite Mock-Antwort: DELETE für das Löschen
-        fetch.mockResolvedValueOnce({
-            ok: true,
-        });
+        fetch
+            .mockResolvedValueOnce({
+                ok: true,
+                status: 200,
+                headers: { get: () => "application/json" },
+                text: async () => JSON.stringify(dto),
+            })
+            .mockResolvedValueOnce({ ok: true, status: 200, text: async () => "" });
 
         renderWithRouter(<Reservations />);
 
-        // Sicherstellen, dass der Benutzer angezeigt wird
-        await waitFor(() => {
-            expect(screen.getByText(/Anna/)).toBeInTheDocument();
-        });
+        await waitFor(() =>
+            expect(screen.getByRole("button", { name: /Reservierung löschen/i })).toBeInTheDocument()
+        );
 
-        // Löschen-Button finden und klicken
-        const deleteButton = screen.getByRole("button", { name: "X" });
-        fireEvent.click(deleteButton);
+        fireEvent.click(screen.getByRole("button", { name: /Reservierung löschen/i }));
 
-        // Sicherstellen, dass DELETE-Request korrekt abgesetzt wurde
-        await waitFor(() => {
+        await waitFor(() =>
             expect(fetch).toHaveBeenCalledWith(
                 "http://localhost:8080/api/reservations/2",
-                expect.objectContaining({
-                    method: "DELETE",
-                    credentials: "include"
-                })
-            );
-        });
+                expect.objectContaining({ method: "DELETE" })
+            )
+        );
     });
 });

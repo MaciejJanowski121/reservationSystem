@@ -1,14 +1,14 @@
 package org.example.reservationsystem;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.example.reservationsystem.model.RestaurantTable;
+import org.example.reservationsystem.JWTServices.JwtService;
 import org.example.reservationsystem.model.Reservation;
+import org.example.reservationsystem.model.RestaurantTable;
 import org.example.reservationsystem.model.Role;
 import org.example.reservationsystem.model.User;
 import org.example.reservationsystem.repository.ReservationRepository;
 import org.example.reservationsystem.repository.TableRepository;
 import org.example.reservationsystem.repository.UserRepository;
-import org.example.reservationsystem.JWTServices.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,115 +22,112 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
 @AutoConfigureMockMvc
 public class ReservationIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @Autowired private MockMvc mockMvc;
+    @Autowired private ObjectMapper objectMapper;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+    @Autowired private UserRepository userRepository;
+    @Autowired private TableRepository tableRepository;
+    @Autowired private ReservationRepository reservationRepository;
 
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private TableRepository tableRepository;
-
-    @Autowired
-    private ReservationRepository reservationRepository;
-
-    @Autowired
-    private JwtService jwtService;
+    @Autowired private JwtService jwtService;
 
     private String jwtToken;
     private User testUser;
     private RestaurantTable testTable;
 
     @BeforeEach
-    public void setup() {
-        // Usuń wszystkie rezerwacje i przywróć powiązane stoliki
-        for (Reservation reservation : reservationRepository.findAll()) {
-            RestaurantTable table = reservation.getTable();
-            if (table != null) {
-                table.setReservation(null);
-                table.setReserved(false);
-                tableRepository.save(table);
-            }
-
-            reservation.setTable(null);
-            reservation.setUser(null);
-            reservationRepository.save(reservation);
-        }
-
+    void setup() {
+        // Datenbank bereinigen (Reihenfolge: Reservierungen -> Benutzer/Tische)
         reservationRepository.deleteAll();
-
-        // Usuń użytkowników i stoliki dopiero po zerwaniu powiązań
         userRepository.deleteAll();
         tableRepository.deleteAll();
 
-        // Stwórz testowego użytkownika
+        // Benutzer anlegen
         testUser = new User();
         testUser.setUsername("testuser");
         testUser.setPassword("password123");
         testUser.setRole(Role.ROLE_USER);
         testUser = userRepository.save(testUser);
 
-        // Stwórz testowy stolik
+        // Tisch anlegen (Nummer 5)
         testTable = new RestaurantTable();
         testTable.setTableNumber(5);
         testTable.setNumberOfSeats(4);
-        testTable.setReserved(false);
         testTable = tableRepository.save(testTable);
 
-        // Wygeneruj JWT
+        // JWT erzeugen
         jwtToken = jwtService.generateToken(testUser);
     }
 
-    @Test
-    public void testCreateReservation() throws Exception {
-        Map<String, Object> reservationData = new HashMap<>();
-        Map<String, Object> reservation = new HashMap<>();
-        reservation.put("id", null);
-        reservation.put("name", "Test Reservation");
-        reservation.put("email", "test@example.com");
-        reservation.put("phone", "123456789");
-        reservation.put("reservationTime", LocalDateTime.now().plusDays(1).toString());
-        reservation.put("table", null);
+    private Map<String, Object> validReservationPayload() {
+        // Start/Ende morgen 18:00–20:00 (Sekunden explizit auf 0)
+        LocalDateTime start = LocalDateTime.now().plusDays(1)
+                .withHour(18).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime end = start.plusHours(2);
 
-        reservationData.put("reservation", reservation);
-        reservationData.put("tableNumber", 5);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("tableNumber", testTable.getTableNumber());
+        payload.put("startTime", start.toString()); // ISO_LOCAL_DATE_TIME mit Sekunden
+        payload.put("endTime", end.toString());
+        return payload;
+    }
+
+    @Test
+    void createReservation_shouldReturnOk_withDtoResponse() throws Exception {
+        Map<String, Object> body = validReservationPayload();
 
         mockMvc.perform(post("/api/reservations")
                         .cookie(new MockCookie("token", jwtToken))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(reservationData)))
+                        .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Test Reservation"));
+                .andExpect(jsonPath("$.username").value("testuser"))
+                .andExpect(jsonPath("$.tableNumber").value(testTable.getTableNumber()))
+                .andExpect(jsonPath("$.startTime").exists())
+                .andExpect(jsonPath("$.endTime").exists());
     }
 
     @Test
-    public void testGetUserReservation() throws Exception {
-        // Tworzymy rezerwację najpierw
-        testCreateReservation();
+    void getUserReservation_shouldReturnDto_afterCreation() throws Exception {
+        // Reservierung anlegen
+        Map<String, Object> body = validReservationPayload();
+        mockMvc.perform(post("/api/reservations")
+                        .cookie(new MockCookie("token", jwtToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
 
+        // Eigene Reservierung abfragen
         mockMvc.perform(get("/api/reservations/userReservations")
                         .cookie(new MockCookie("token", jwtToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("Test Reservation"));
+                .andExpect(jsonPath("$.username").value("testuser"))
+                .andExpect(jsonPath("$.tableNumber").value(testTable.getTableNumber()))
+                .andExpect(jsonPath("$.startTime").exists())
+                .andExpect(jsonPath("$.endTime").exists());
     }
 
     @Test
-    public void testDeleteReservation() throws Exception {
-        // Najpierw utwórz rezerwację
-        testCreateReservation();
+    void deleteReservation_shouldReturnNoContent() throws Exception {
+        // Reservierung anlegen
+        Map<String, Object> body = validReservationPayload();
+        mockMvc.perform(post("/api/reservations")
+                        .cookie(new MockCookie("token", jwtToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(body)))
+                .andExpect(status().isOk());
 
+        // ID aus der DB holen und löschen
         Reservation created = reservationRepository.findAll().get(0);
-
         mockMvc.perform(delete("/api/reservations/" + created.getId())
                         .cookie(new MockCookie("token", jwtToken)))
                 .andExpect(status().isNoContent());

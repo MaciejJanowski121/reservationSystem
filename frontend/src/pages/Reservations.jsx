@@ -49,7 +49,7 @@ function Reservations() {
                         return;
                     }
 
-                    // Spróbuj sparsować JSON
+
                     try {
                         const data = contentType.includes("application/json")
                             ? JSON.parse(raw)
@@ -62,7 +62,7 @@ function Reservations() {
                     return;
                 }
 
-                // !ok -> pokaż treść błędu
+
                 throw new Error(raw || `HTTP-Fehler: ${status}`);
             } catch (err) {
                 if (err.name !== "AbortError") {
@@ -97,7 +97,7 @@ function Reservations() {
         }
     };
 
-    // helpery formatowania
+
     const fmtDate = (iso) =>
         iso ? new Date(iso).toLocaleDateString("de-DE") : "Unbekannt";
 

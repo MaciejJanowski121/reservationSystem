@@ -28,31 +28,40 @@ public class AuthIntegrationTest {
 
     @Test
     public void shouldRegisterLoginAndCheckAuthSuccessfully() throws Exception {
-        // Einzigartigen Benutzernamen generieren
+        // Einzigartiger Benutzername, um Konflikte in der Testdatenbank zu vermeiden
         String username = "maciej_" + System.currentTimeMillis();
-        UserRegisterDTO userDTO = new UserRegisterDTO(username, "test123");
 
-        // Registrierung des Benutzers
+        // DTO über leeren Konstruktor und Setter erstellen
+        UserRegisterDTO userDTO = new UserRegisterDTO();
+        userDTO.setUsername(username);
+        userDTO.setPassword("test123");
+        userDTO.setFullName("Maciej Janowski");
+        userDTO.setEmail(username + "@example.com");
+        userDTO.setPhone("+49 170 0000000");
+
+        // --- Registrierung ---
         mockMvc.perform(post("/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(userDTO)))
                 .andExpect(status().isOk())
-                .andExpect(cookie().exists("token")) // 🔐 Überprüfung, ob Token-Cookie gesetzt wurde
+                .andExpect(header().exists("Set-Cookie"))
                 .andExpect(jsonPath("$.username").value(username));
 
-        // Login durchführen und Token-Cookie abrufen
+        // --- Login ---
         var loginResult = mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(userDTO)))
                 .andExpect(status().isOk())
-                .andExpect(cookie().exists("token"))
+                .andExpect(header().exists("Set-Cookie"))
                 .andExpect(jsonPath("$.username").value(username))
                 .andExpect(jsonPath("$.role").value("ROLE_USER"))
                 .andReturn();
 
-        String tokenValue = loginResult.getResponse().getCookie("token").getValue();
+        // Token-Wert aus dem Set-Cookie-Header extrahieren
+        String setCookieHeader = loginResult.getResponse().getHeader("Set-Cookie");
+        String tokenValue = setCookieHeader.split("token=")[1].split(";")[0];
 
-        // Authentifizierung prüfen über /auth/auth_check mit Token-Cookie
+        // --- Authentifizierung prüfen ---
         mockMvc.perform(get("/auth/auth_check")
                         .cookie(new MockCookie("token", tokenValue)))
                 .andExpect(status().isOk())

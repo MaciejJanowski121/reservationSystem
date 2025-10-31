@@ -23,7 +23,7 @@ public class User implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Login
+
     @Column(nullable = false, length = 100)
     private String username;
 
@@ -34,7 +34,7 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private Role role;
 
-    // Profil
+
     @Column(name = "full_name", nullable = false, length = 200)
     private String fullName;
 
@@ -44,7 +44,7 @@ public class User implements UserDetails {
     @Column(name = "phone", length = 50)
     private String phone;
 
-    // Relacja 1↔1 z aktywną rezerwacją
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private Reservation reservation;
 
@@ -76,7 +76,7 @@ public class User implements UserDetails {
     @Override public boolean isCredentialsNonExpired() { return true; }
     @Override public boolean isEnabled()               { return true; }
 
-    // Gettery/Settery
+
     public Long getId() { return id; }             public void setId(Long id) { this.id = id; }
     public void setUsername(String u) { this.username = u; }
     public void setPassword(String p) { this.password = p; }

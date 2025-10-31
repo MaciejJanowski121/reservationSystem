@@ -37,10 +37,10 @@ public class AuthController {
     private void writeAuthCookie(HttpServletResponse response, String token) {
         ResponseCookie cookie = ResponseCookie.from("token", token)
                 .httpOnly(true)
-                .secure(false)          // USTAW NA true W HTTPS
-                .sameSite("Lax")        // Dla cross-site i HTTPS -> "None"
+                .secure(false)
+                .sameSite("Lax")
                 .path("/")
-                .maxAge(60L * 60 * 24)  // 1 dzień
+                .maxAge(60L * 60 * 24)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
     }
@@ -54,14 +54,14 @@ public class AuthController {
 
             AuthUserDTO body = new AuthUserDTO(
                     userDTO.getUsername(),
-                    "ROLE_USER",                 // nowy użytkownik
+                    "ROLE_USER",
                     userDTO.getFullName(),
                     userDTO.getEmail(),
                     userDTO.getPhone()
             );
             return ResponseEntity.ok(body);
         } catch (DataIntegrityViolationException ex) {
-            return ResponseEntity.status(409).build(); // 409 Conflict (np. duplikat username/email)
+            return ResponseEntity.status(409).build();
         }
     }
 

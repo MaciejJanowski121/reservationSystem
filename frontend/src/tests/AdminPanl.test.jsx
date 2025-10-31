@@ -2,12 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 import AdminPanel from "../pages/AdminPanel";
 
-// Mock für useNavigate – wir überschreiben die Standardfunktion
+// Mock von useNavigate
 jest.mock("react-router-dom", () => {
     const original = jest.requireActual("react-router-dom");
     return {
         ...original,
-        useNavigate: jest.fn()
+        useNavigate: jest.fn(),
     };
 });
 
@@ -15,12 +15,7 @@ describe("AdminPanel", () => {
     const mockNavigate = jest.fn();
 
     beforeEach(() => {
-        // Vor jedem Test: useNavigate liefert unser mockNavigate zurück
         useNavigate.mockReturnValue(mockNavigate);
-    });
-
-    afterEach(() => {
-        // Nach jedem Test: alle Mocks zurücksetzen
         jest.clearAllMocks();
     });
 
@@ -31,16 +26,17 @@ describe("AdminPanel", () => {
             </MemoryRouter>
         );
 
-        // Wir warten auf die Darstellung des Inhalts
         await waitFor(() => {
-            expect(screen.getByText("Admin Panel")).toBeInTheDocument();
+            // Nagłówek panelu admina
+            expect(screen.getByText(/Admin Panel/i)).toBeInTheDocument();
 
-            expect(
-                screen.getByText((content, element) =>
-                    element.textContent === "Angemeldet als: Maciej"
-                )
-            ).toBeInTheDocument();
+            // Sprawdzenie wyświetlenia użytkownika
+            expect(screen.getByText(/Angemeldet als:/i)).toBeInTheDocument();
+            expect(screen.getByText(/Maciej/i)).toBeInTheDocument();
         });
+
+        // Brak przekierowania w trybie admina
+        expect(mockNavigate).not.toHaveBeenCalled();
     });
 
     test("leitet weiter nach /myaccount, wenn Rolle nicht ROLE_ADMIN ist", () => {
@@ -50,7 +46,18 @@ describe("AdminPanel", () => {
             </MemoryRouter>
         );
 
-        // Erwartung: automatische Weiterleitung
+        // Sprawdzenie natychmiastowego przekierowania
+        expect(mockNavigate).toHaveBeenCalledTimes(1);
+        expect(mockNavigate).toHaveBeenCalledWith("/myaccount");
+    });
+
+    test("leitet weiter, wenn keine Rolle vorhanden ist", () => {
+        render(
+            <MemoryRouter>
+                <AdminPanel username="Maciej" />
+            </MemoryRouter>
+        );
+
         expect(mockNavigate).toHaveBeenCalledWith("/myaccount");
     });
 });

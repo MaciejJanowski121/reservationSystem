@@ -29,7 +29,7 @@ function Register() {
         setErrorMsg("");
         setSuccessMsg("");
 
-        // --- Walidacja frontendowa ---
+
         if (fullName.trim().length < 2)
             return setErrorMsg("Bitte den vollständigen Namen angeben.");
         if (!validEmail(email))
@@ -168,7 +168,7 @@ function Register() {
                         <small className="hint">Mindestens 3 Zeichen</small>
                     </div>
 
-                    {/* PASSWORD */}
+
                     <div className="field">
                         <label htmlFor="password">Passwort</label>
                         <div className="pwd-wrap">

@@ -35,6 +35,9 @@
       "last 1 safari version"
     ]
   },
+  "jest": {
+    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.js"]
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0"

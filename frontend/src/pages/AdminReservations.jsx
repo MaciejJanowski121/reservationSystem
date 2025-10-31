@@ -18,7 +18,7 @@ function AdminReservations() {
                 });
 
                 if (!res.ok) {
-                    // pokaż błąd zamiast udawać, że lista jest pusta
+
                     const text = await res.text();
                     setErrorMsg(
                         text || (res.status === 401 || res.status === 403
@@ -29,7 +29,7 @@ function AdminReservations() {
                     return;
                 }
 
-                // Oczekujemy listy ReservationViewDTO: { id, username, tableNumber, startTime, endTime }
+
                 const data = await res.json();
                 setReservations(Array.isArray(data) ? data : []);
             } catch (e) {

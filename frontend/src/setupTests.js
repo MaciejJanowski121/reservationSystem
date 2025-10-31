@@ -4,3 +4,12 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
 
+// src/setupTests.js
+const originalWarn = console.warn;
+
+beforeAll(() => {
+    console.warn = (msg, ...args) => {
+        if (typeof msg === "string" && msg.includes("React Router Future Flag Warning")) return;
+        originalWarn(msg, ...args);
+    };
+});

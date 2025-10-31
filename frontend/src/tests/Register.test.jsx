@@ -2,75 +2,47 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Register from "../pages/Register";
 import { BrowserRouter } from "react-router-dom";
 
-// Wir mocken die globale fetch-Funktion, um API-Aufrufe zu simulieren
 global.fetch = jest.fn();
-
-// Hilfsfunktion zum Rendern mit Router-Kontext
 const renderWithRouter = (ui) => render(<BrowserRouter>{ui}</BrowserRouter>);
 
-describe("Register-Komponente", () => {
-    // Vor jedem Test setzen wir den fetch-Mock zurück
-    beforeEach(() => {
-        fetch.mockClear();
-    });
+describe("Register", () => {
+    beforeEach(() => fetch.mockClear());
 
-    test("zeigt Eingabefelder und Button an", () => {
-        renderWithRouter(<Register />);
-        // Überprüft, ob die Eingabefelder und der Button sichtbar sind
-        expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument();
-        expect(screen.getByLabelText(/passwort/i)).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: /registrieren/i })).toBeInTheDocument();
-    });
-
-    test("sendet Formular ab und navigiert bei Erfolg", async () => {
-        // Simuliere eine erfolgreiche Registrierung (HTTP 200 OK)
-        fetch.mockResolvedValueOnce({ ok: true });
-
-        renderWithRouter(<Register />);
-
-        // Fülle die Eingabefelder aus
-        fireEvent.change(screen.getByLabelText(/benutzername/i), {
-            target: { value: "maciej" },
-        });
-        fireEvent.change(screen.getByLabelText(/passwort/i), {
-            target: { value: "secret" },
-        });
-
-        // Klicke auf den Button zum Registrieren
-        fireEvent.click(screen.getByRole("button", { name: /registrieren/i }));
-
-        // Warten auf den Aufruf der fetch-Funktion
-        await waitFor(() => {
-            expect(fetch).toHaveBeenCalledTimes(1);
-        });
-    });
-
-    test("zeigt Fehlermeldung bei fehlgeschlagener Registrierung", async () => {
-        // Simuliere eine fehlgeschlagene Registrierung mit Fehlermeldung
+    test("sendet formular und zeigt succes", async () => {
         fetch.mockResolvedValueOnce({
-            ok: false,
-            json: async () => ({ message: "Benutzer existiert bereits" }),
+            ok: true,
+            json: async () => ({
+                username: "maciej",
+                fullName: "Maciej Janowski",
+                email: "maciej@example.com",
+                phone: "+491701234567",
+            }),
         });
-
-        // Mock für window.alert
-        window.alert = jest.fn();
 
         renderWithRouter(<Register />);
 
-        // Eingabe von Benutzerdaten
-        fireEvent.change(screen.getByLabelText(/benutzername/i), {
-            target: { value: "maciej" },
-        });
-        fireEvent.change(screen.getByLabelText(/passwort/i), {
-            target: { value: "secret" },
-        });
+        fireEvent.change(screen.getByLabelText(/Vollständiger Name/i), { target: { value: "Maciej Janowski" } });
+        fireEvent.change(screen.getByLabelText(/^E-Mail$/i), { target: { value: "maciej@example.com" } });
+        fireEvent.change(screen.getByLabelText(/Telefon/i), { target: { value: "+491701234567" } });
+        fireEvent.change(screen.getByLabelText(/Benutzername/i), { target: { value: "maciej" } });
+        fireEvent.change(screen.getByLabelText(/^Passwort$/i), { target: { value: "secret1" } });
 
-        // Klicke auf Registrieren
-        fireEvent.click(screen.getByRole("button", { name: /registrieren/i }));
+        fireEvent.click(screen.getByRole("button", { name: /Registrieren/i }));
 
-        // Überprüfung, ob die Fehlermeldung angezeigt wird
         await waitFor(() => {
-            expect(window.alert).toHaveBeenCalledWith("Benutzer existiert bereits");
+            expect(fetch).toHaveBeenCalledWith(
+                "http://localhost:8080/auth/register",
+                expect.objectContaining({
+                    body: JSON.stringify({
+                        username: "maciej",
+                        password: "secret1",
+                        fullName: "Maciej Janowski",
+                        email: "maciej@example.com",
+                        phone: "+491701234567",
+                    }),
+                })
+            );
+            expect(screen.getByRole("status")).toHaveTextContent(/Registrierung erfolgreich/i);
         });
     });
 });

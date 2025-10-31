@@ -33,14 +33,14 @@ public class ReservationController {
         this.jwtService = jwtService;
     }
 
-    // POST /api/reservations — tworzy rezerwację z DTO (tableNumber, startTime, endTime?)
+    // POST /api/reservations — neue reservierung
     @PostMapping
     public ResponseEntity<ReservationViewDTO> createReservation(HttpServletRequest request,
                                                                 @Valid @RequestBody ReservationRequestDTO dto) {
         final String username = extractUsernameFromToken(request);
         if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-        // budujemy encję tylko z czasami (kontakt jest w User)
+
         Reservation reservation = new Reservation(dto.getStartTime(), dto.getEndTime());
         Reservation saved = reservationService.addReservation(reservation, dto.getTableNumber(), username);
         return ResponseEntity.ok(toDto(saved));
@@ -53,7 +53,7 @@ public class ReservationController {
         return ResponseEntity.noContent().build();
     }
 
-    // GET /api/reservations/userReservations — rezerwacja zalogowanego użytkownika (albo 204)
+    // GET /api/reservations/userReservations — angemeldete benutzer reservierungen (oder 204)
     @GetMapping("/userReservations")
     public ResponseEntity<ReservationViewDTO> getUserReservation(HttpServletRequest request) {
         final String username = extractUsernameFromToken(request);
@@ -64,7 +64,7 @@ public class ReservationController {
         return ResponseEntity.ok(toDto(r));
     }
 
-    // GET /api/reservations/all — lista rezerwacji (np. dla admina)
+    // GET /api/reservations/all — Alle Reservierungen
     @GetMapping("/all")
     public ResponseEntity<List<ReservationViewDTO>> getAllReservations() {
         List<ReservationViewDTO> all = reservationService.getAllReservations()
@@ -75,7 +75,7 @@ public class ReservationController {
     }
 
     // GET /api/reservations/available?start=YYYY-MM-DDTHH:mm:ss&minutes=...
-    // Zwraca *wolne* stoliki jako lekkie DTO (bez encji i proxy)
+
     @GetMapping("/available")
     public ResponseEntity<List<TableViewDTO>> getAvailableTables(
             @RequestParam("start") String startIso,
